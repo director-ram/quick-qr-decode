@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,30 +81,30 @@ const Index = () => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="relative mb-8">
               <div ref={tabsRef} className="relative">
-                <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-2 hover-lift">
+                <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-2 hover-lift relative">
                   {/* Floating indicator bar */}
                   <div 
-                    className="absolute top-2 bottom-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-lg z-0"
+                    className="absolute top-2 bottom-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-lg transition-all duration-300 ease-in-out"
                     style={indicatorStyle}
                   />
                   
                   <TabsTrigger 
                     value="generate" 
-                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-10 data-[state=active]:text-white data-[state=active]:shadow-none"
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-10 data-[state=active]:text-white data-[state=active]:shadow-none text-gray-700 hover:text-gray-900"
                   >
                     <QrCode size={18} />
                     Generate
                   </TabsTrigger>
                   <TabsTrigger 
                     value="scan" 
-                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-10 data-[state=active]:text-white data-[state=active]:shadow-none"
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-10 data-[state=active]:text-white data-[state=active]:shadow-none text-gray-700 hover:text-gray-900"
                   >
                     <ScanQrCode size={18} />
                     Scan
                   </TabsTrigger>
                   <TabsTrigger 
                     value="history" 
-                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-10 data-[state=active]:text-white data-[state=active]:shadow-none"
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-10 data-[state=active]:text-white data-[state=active]:shadow-none text-gray-700 hover:text-gray-900"
                   >
                     <History size={18} />
                     History
