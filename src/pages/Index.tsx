@@ -6,6 +6,12 @@ import QRScanner from '@/components/QRScanner';
 import QRHistory from '@/components/QRHistory';
 import { QrCode, ScanQrCode, History, Sparkles } from 'lucide-react';
 
+// >>>>> Import Firestore & user IP util <<<<<
+import { db } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getUserIp } from '../utils/getUserIp';
+// ^^^^^ Imports for Firestore and getUserIp ^^^^^
+
 export interface QRHistoryItem {
   id: string;
   type: 'generated' | 'scanned';
