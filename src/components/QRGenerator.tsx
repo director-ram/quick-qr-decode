@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Download, Copy, Check } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import * as QRCode from 'qrcode';
 import type { QRHistoryItem } from '@/pages/Index';
 
 interface QRGeneratorProps {
@@ -79,6 +78,8 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
     }
 
     try {
+      // Dynamic import to avoid build issues
+      const QRCode = await import('qrcode');
       const canvas = canvasRef.current;
       if (canvas) {
         await QRCode.toCanvas(canvas, data, {
