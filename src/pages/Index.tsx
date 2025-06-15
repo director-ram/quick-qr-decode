@@ -58,21 +58,21 @@ const Index = () => {
               <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-2 hover-lift">
                 <TabsTrigger 
                   value="generate" 
-                  className="flex items-center gap-2 rounded-xl transition-all duration-300 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  className="flex items-center gap-2 rounded-xl transition-all duration-300 data-[state=active]:bg-white/90 data-[state=active]:text-purple-600 data-[state=active]:shadow-lg data-[state=active]:border data-[state=active]:border-purple-200/50"
                 >
                   <QrCode size={18} />
                   Generate
                 </TabsTrigger>
                 <TabsTrigger 
                   value="scan" 
-                  className="flex items-center gap-2 rounded-xl transition-all duration-300 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  className="flex items-center gap-2 rounded-xl transition-all duration-300 data-[state=active]:bg-white/90 data-[state=active]:text-blue-600 data-[state=active]:shadow-lg data-[state=active]:border data-[state=active]:border-blue-200/50"
                 >
                   <ScanQrCode size={18} />
                   Scan
                 </TabsTrigger>
                 <TabsTrigger 
                   value="history" 
-                  className="flex items-center gap-2 rounded-xl transition-all duration-300 data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  className="flex items-center gap-2 rounded-xl transition-all duration-300 data-[state=active]:bg-white/90 data-[state=active]:text-green-600 data-[state=active]:shadow-lg data-[state=active]:border data-[state=active]:border-green-200/50"
                 >
                   <History size={18} />
                   History
