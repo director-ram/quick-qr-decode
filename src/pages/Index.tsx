@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +19,7 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState('generate');
   const [indicatorStyle, setIndicatorStyle] = useState({});
   const tabsRef = useRef<HTMLDivElement>(null);
+  const [userIp, setUserIp] = useState<string | null>(null);
 
   const addToHistory = (item: Omit<QRHistoryItem, 'id' | 'timestamp'>) => {
     const newItem: QRHistoryItem = {
@@ -30,6 +29,59 @@ const Index = () => {
     };
     setHistory(prev => [newItem, ...prev].slice(0, 50)); // Keep last 50 items
   };
+
+  useEffect(() => {
+    getUserIp().then(setUserIp);
+  }, []);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      if (!userIp) return;
+      try {
+        const docRef = doc(db, "qr-history", userIp);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data && Array.isArray(data.history)) {
+            // Convert timestamps back to Date objects
+            setHistory(
+              data.history.map((item: any) => ({
+                ...item,
+                timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
+              }))
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Error loading history from Firebase:", error);
+      }
+    };
+    fetchHistory();
+    // eslint-disable-next-line
+  }, [userIp]);
+
+  useEffect(() => {
+    const saveHistory = async () => {
+      if (!userIp) return;
+      try {
+        const docRef = doc(db, "qr-history", userIp);
+        // Save using setDoc (overwrite)
+        await setDoc(docRef, {
+          history: history.map(item => ({
+            ...item,
+            timestamp: item.timestamp?.toISOString?.() || new Date().toISOString(),
+          })),
+        });
+      } catch (error) {
+        console.error("Error saving history to Firebase:", error);
+      }
+    };
+    if (userIp) {
+      saveHistory();
+    }
+    // Only save when history or userIp changes
+    // eslint-disable-next-line
+  }, [history, userIp]);
 
   useEffect(() => {
     const updateIndicator = () => {
