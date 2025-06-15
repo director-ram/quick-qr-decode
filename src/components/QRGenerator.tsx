@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Download, Copy, Check } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import QRCode from 'qrcode';
+import * as QRCode from 'qrcode';
 import type { QRHistoryItem } from '@/pages/Index';
 
 interface QRGeneratorProps {
