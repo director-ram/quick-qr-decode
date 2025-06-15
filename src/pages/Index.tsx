@@ -82,33 +82,33 @@ const Index = () => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="relative mb-8">
               <div ref={tabsRef} className="relative">
-                <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-2 hover-lift relative">
-                  {/* Floating indicator bar */}
+                <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-2 hover-lift relative overflow-hidden">
+                  {/* Floating indicator bar - positioned behind text */}
                   <div 
-                    className="absolute top-2 bottom-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-lg transition-all duration-300 ease-in-out z-0"
+                    className="absolute top-2 bottom-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-lg transition-all duration-300 ease-in-out z-10"
                     style={indicatorStyle}
                   />
                   
                   <TabsTrigger 
                     value="generate" 
-                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-20 data-[state=active]:text-white data-[state=active]:shadow-none text-gray-700 hover:text-gray-900 bg-transparent"
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-20 data-[state=active]:text-white data-[state=inactive]:text-gray-700 hover:text-gray-900 bg-transparent border-0 shadow-none"
                   >
                     <QrCode size={18} />
-                    Generate
+                    <span className="font-medium">Generate</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="scan" 
-                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-20 data-[state=active]:text-white data-[state=active]:shadow-none text-gray-700 hover:text-gray-900 bg-transparent"
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-20 data-[state=active]:text-white data-[state=inactive]:text-gray-700 hover:text-gray-900 bg-transparent border-0 shadow-none"
                   >
                     <ScanQrCode size={18} />
-                    Scan
+                    <span className="font-medium">Scan</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="history" 
-                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-20 data-[state=active]:text-white data-[state=active]:shadow-none text-gray-700 hover:text-gray-900 bg-transparent"
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-20 data-[state=active]:text-white data-[state=inactive]:text-gray-700 hover:text-gray-900 bg-transparent border-0 shadow-none"
                   >
                     <History size={18} />
-                    History
+                    <span className="font-medium">History</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -179,4 +179,3 @@ const Index = () => {
 };
 
 export default Index;
-
