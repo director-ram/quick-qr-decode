@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import QRGenerator from '@/components/QRGenerator';
@@ -17,6 +16,9 @@ export interface QRHistoryItem {
 
 const Index = () => {
   const [history, setHistory] = useState<QRHistoryItem[]>([]);
+  const [activeTab, setActiveTab] = useState('generate');
+  const [indicatorStyle, setIndicatorStyle] = useState({});
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   const addToHistory = (item: Omit<QRHistoryItem, 'id' | 'timestamp'>) => {
     const newItem: QRHistoryItem = {
@@ -26,6 +28,28 @@ const Index = () => {
     };
     setHistory(prev => [newItem, ...prev].slice(0, 50)); // Keep last 50 items
   };
+
+  useEffect(() => {
+    const updateIndicator = () => {
+      if (tabsRef.current) {
+        const activeButton = tabsRef.current.querySelector(`[data-state="active"]`) as HTMLElement;
+        if (activeButton) {
+          const rect = activeButton.getBoundingClientRect();
+          const containerRect = tabsRef.current.getBoundingClientRect();
+          setIndicatorStyle({
+            width: rect.width - 8,
+            left: rect.left - containerRect.left + 4,
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+          });
+        }
+      }
+    };
+
+    updateIndicator();
+    const timeoutId = setTimeout(updateIndicator, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [activeTab]);
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -53,31 +77,39 @@ const Index = () => {
 
         {/* Main Content with enhanced cards */}
         <div className="max-w-4xl mx-auto">
-          <Tabs defaultValue="generate" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="relative mb-8">
-              <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-2 hover-lift">
-                <TabsTrigger 
-                  value="generate" 
-                  className="flex items-center gap-2 rounded-xl transition-all duration-300 data-[state=active]:bg-white/90 data-[state=active]:text-purple-600 data-[state=active]:shadow-lg data-[state=active]:border data-[state=active]:border-purple-200/50"
-                >
-                  <QrCode size={18} />
-                  Generate
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="scan" 
-                  className="flex items-center gap-2 rounded-xl transition-all duration-300 data-[state=active]:bg-white/90 data-[state=active]:text-blue-600 data-[state=active]:shadow-lg data-[state=active]:border data-[state=active]:border-blue-200/50"
-                >
-                  <ScanQrCode size={18} />
-                  Scan
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="history" 
-                  className="flex items-center gap-2 rounded-xl transition-all duration-300 data-[state=active]:bg-white/90 data-[state=active]:text-green-600 data-[state=active]:shadow-lg data-[state=active]:border data-[state=active]:border-green-200/50"
-                >
-                  <History size={18} />
-                  History
-                </TabsTrigger>
-              </TabsList>
+              <div ref={tabsRef} className="relative">
+                <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-2 hover-lift">
+                  {/* Floating indicator bar */}
+                  <div 
+                    className="absolute top-2 bottom-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-lg z-0"
+                    style={indicatorStyle}
+                  />
+                  
+                  <TabsTrigger 
+                    value="generate" 
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-10 data-[state=active]:text-white data-[state=active]:shadow-none"
+                  >
+                    <QrCode size={18} />
+                    Generate
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="scan" 
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-10 data-[state=active]:text-white data-[state=active]:shadow-none"
+                  >
+                    <ScanQrCode size={18} />
+                    Scan
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="history" 
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-10 data-[state=active]:text-white data-[state=active]:shadow-none"
+                  >
+                    <History size={18} />
+                    History
+                  </TabsTrigger>
+                </TabsList>
+              </div>
             </div>
 
             <TabsContent value="generate" className="slide-in-left">
