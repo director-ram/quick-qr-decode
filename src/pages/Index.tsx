@@ -1,9 +1,13 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import QRGenerator from '@/components/QRGenerator';
 import QRScanner from '@/components/QRScanner';
 import QRHistory from '@/components/QRHistory';
+import AnimatedBackground from '@/components/AnimatedBackground';
+import FloatingParticles from '@/components/FloatingParticles';
+import PageHeader from '@/components/PageHeader';
 import { QrCode, ScanQrCode, History, Sparkles } from 'lucide-react';
 
 // >>>>> Import Firestore & user IP util <<<<<
@@ -114,26 +118,11 @@ const Index = () => {
   return (
     <div className="min-h-screen relative overflow-hidden">
       {/* Animated background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
-        <div className="absolute top-20 left-20 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 float-animation"></div>
-        <div className="absolute top-40 right-20 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 float-animation" style={{animationDelay: '2s'}}></div>
-        <div className="absolute -bottom-8 left-40 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 float-animation" style={{animationDelay: '4s'}}></div>
-      </div>
+      <AnimatedBackground />
 
       <div className="container mx-auto px-4 py-8 relative z-10">
-        {/* Header with enhanced styling */}
-        <div className="text-center mb-12 slide-in-top">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl glow-effect">
-              <QrCode className="h-8 w-8 text-white" />
-            </div>
-            <h1 className="text-5xl font-bold gradient-text">HAG's QR Scanner</h1>
-            <Sparkles className="h-6 w-6 text-yellow-500 float-animation" />
-          </div>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-            Generate, scan, and manage QR codes with ease using our modern, interactive platform
-          </p>
-        </div>
+        {/* Header */}
+        <PageHeader />
 
         {/* Main Content with enhanced cards */}
         <div className="max-w-4xl mx-auto">
@@ -218,20 +207,7 @@ const Index = () => {
       </div>
 
       {/* Floating particles effect */}
-      <div className="absolute inset-0 pointer-events-none">
-        {[...Array(6)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute w-2 h-2 bg-white rounded-full opacity-30 float-animation"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 3}s`,
-              animationDuration: `${3 + Math.random() * 2}s`
-            }}
-          />
-        ))}
-      </div>
+      <FloatingParticles />
     </div>
   );
 };
