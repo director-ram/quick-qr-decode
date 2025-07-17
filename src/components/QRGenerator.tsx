@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,8 +6,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Download, Copy, Check, Upload, Palette, Image as ImageIcon } from 'lucide-react';
+import { Switch } from "@/components/ui/switch";
+import { Download, Copy, Check, Upload, Palette, Image as ImageIcon, Shield, Lock, Minimize2, Eye, EyeOff } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { encryptData, isValidPin } from '@/utils/encryption';
+import { storePinProtectedQRCode } from '@/utils/qrCodeService';
+import { useAuth } from '@/contexts/AuthContext';
 import type { QRHistoryItem } from '@/pages/Index';
 
 interface QRGeneratorProps {
@@ -22,8 +26,10 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pipCanvasRef = useRef<HTMLCanvasElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { currentUser } = useAuth();
 
   // QR Customization options
   const [qrColor, setQrColor] = useState('#1f2937');
@@ -57,35 +63,178 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
     message: ''
   });
 
-  const generateQRData = (): string => {
+  // PIN Protection state
+  const [isPinProtected, setIsPinProtected] = useState(false);
+  const [pinCode, setPinCode] = useState('');
+  const [showPin, setShowPin] = useState(false);
+
+  // PIP Mode and Animation state
+  const [isPipMode, setIsPipMode] = useState(false);
+  const [scrollPosition, setScrollPosition] = useState(0);
+  const [qrDisplayRef, setQrDisplayRef] = useState<HTMLDivElement | null>(null);
+  const [pinSectionRef, setPinSectionRef] = useState<HTMLDivElement | null>(null);
+  const [isQrVisible, setIsQrVisible] = useState(true);
+  const [pipScale, setPipScale] = useState(1);
+  const [pipPosition, setPipPosition] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Scroll detection and PIP mode logic
+  const handleScroll = useCallback(() => {
+    const scrollY = window.scrollY;
+    setScrollPosition(scrollY);
+
+    if (qrDisplayRef && pinSectionRef && qrCodeUrl) {
+      const qrRect = qrDisplayRef.getBoundingClientRect();
+      const pinRect = pinSectionRef.getBoundingClientRect();
+      
+      // Check if QR display is out of view and PIN section is visible
+      const qrOutOfView = qrRect.bottom < 0 || qrRect.top > window.innerHeight;
+      const pinInView = pinRect.top < window.innerHeight && pinRect.bottom > 0;
+      
+      // Enable PIP mode when QR is out of view and PIN section is visible
+      if (qrOutOfView && pinInView && isPinProtected && qrCodeUrl) {
+        setIsPipMode(true);
+        setIsQrVisible(false);
+        
+        // Calculate scale based on scroll distance with smooth transitions
+        const scrollDistance = Math.abs(qrRect.top);
+        const maxScrollDistance = 400;
+        const baseScale = 0.4;
+        const scale = Math.max(baseScale, 1 - (scrollDistance / maxScrollDistance) * (1 - baseScale));
+        setPipScale(scale);
+        
+        // Dynamic positioning based on scroll
+        const dynamicY = Math.max(20, window.innerHeight - 200 - (scrollDistance * 0.1));
+        setPipPosition({
+          x: window.innerWidth - 200,
+          y: dynamicY
+        });
+      } else if (qrCodeUrl && !qrOutOfView) {
+        // Smooth transition back to normal when QR comes back into view
+        setIsPipMode(false);
+        setIsQrVisible(true);
+        setPipScale(1);
+      } else if (!isPinProtected || !qrCodeUrl) {
+        // Disable PIP mode when PIN protection is off or no QR code
+        setIsPipMode(false);
+        setIsQrVisible(true);
+        setPipScale(1);
+      }
+    }
+  }, [qrDisplayRef, pinSectionRef, qrCodeUrl, isPinProtected]);
+
+  // Intersection Observer for better performance
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.target === qrDisplayRef) {
+            setIsQrVisible(entry.isIntersecting);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    if (qrDisplayRef) {
+      observer.observe(qrDisplayRef);
+    }
+
+    return () => observer.disconnect();
+  }, [qrDisplayRef]);
+
+  // Add scroll listener
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
+
+  const generateBaseData = (): string => {
+    let baseData = '';
+    
     switch (dataType) {
       case 'text':
-        return textData;
+        baseData = textData;
+        break;
       case 'url':
-        return urlData.startsWith('http') ? urlData : `https://${urlData}`;
+        baseData = urlData.startsWith('http') ? urlData : `https://${urlData}`;
+        break;
       case 'wifi':
-        return `WIFI:T:${wifiData.security};S:${wifiData.ssid};P:${wifiData.password};;`;
+        baseData = `WIFI:T:${wifiData.security};S:${wifiData.ssid};P:${wifiData.password};;`;
+        break;
       case 'contact':
-        return `MECARD:N:${contactData.name};TEL:${contactData.phone};EMAIL:${contactData.email};ORG:${contactData.organization};;`;
+        baseData = `MECARD:N:${contactData.name};TEL:${contactData.phone};EMAIL:${contactData.email};ORG:${contactData.organization};;`;
+        break;
       case 'email':
-        return `mailto:${emailData.to}?subject=${encodeURIComponent(emailData.subject)}&body=${encodeURIComponent(emailData.body)}`;
+        baseData = `mailto:${emailData.to}?subject=${encodeURIComponent(emailData.subject)}&body=${encodeURIComponent(emailData.body)}`;
+        break;
       case 'sms':
-        return `sms:${smsData.number}?body=${encodeURIComponent(smsData.message)}`;
+        baseData = `sms:${smsData.number}?body=${encodeURIComponent(smsData.message)}`;
+        break;
       default:
-        return '';
+        baseData = '';
     }
+
+    return baseData;
   };
 
-  const generateQRCodeInternal = async (data?: string, showToast: boolean = true) => {
-    const qrText = data || generateQRData();
-    if (!qrText.trim()) {
-      // Clear QR code if no data
-      setQrCodeUrl('');
-      setQrData('');
+  const generateQRDataForPreview = (): string => {
+    const baseData = generateBaseData();
+    
+    // For live preview, show a simple placeholder for PIN-protected QR codes
+    if (isPinProtected && pinCode.trim()) {
+      // Return a simple, valid QR code data that can be scanned
+      return `🔒 PIN PROTECTED PREVIEW - Original: ${baseData.substring(0, 30)}${baseData.length > 30 ? '...' : ''}`;
+    }
+    
+    return baseData;
+  };
+
+  const generateQRDataForSaving = async (): Promise<string> => {
+    const baseData = generateBaseData();
+    
+    // If PIN protection is enabled, store in Firebase and return QR ID
+    if (isPinProtected && pinCode.trim()) {
+      try {
+        // Validate PIN format
+        if (!isValidPin(pinCode)) {
+          throw new Error('PIN must be 4-6 digits');
+        }
+        
+        // Store the PIN-protected data in Firebase
+        const qrId = await storePinProtectedQRCode(
+          baseData, 
+          pinCode, 
+          currentUser?.uid
+        );
+        
+        // Return only the QR ID - external scanners will only see this
+        return `PIN_PROTECTED:${qrId}`;
+      } catch (error) {
+        console.error('Firebase storage error:', error);
+        throw new Error('Failed to store PIN-protected QR code');
+      }
+    }
+    
+    return baseData;
+  };
+
+  const generateQRCodeInternal = async (data?: string, showToast: boolean = true, isForSaving: boolean = false) => {
+    try {
+      let qrText = data;
+      if (!qrText) {
+        if (isForSaving) {
+          qrText = await generateQRDataForSaving();
+        } else {
+          qrText = generateQRDataForPreview();
+        }
+      }
+      if (!qrText.trim()) {
+        // Clear QR code if no data
+        setQrCodeUrl('');
+        setQrData('');
       return;
     }
-
-    try {
       // Dynamic import to avoid build issues
       const QRCode = await import('qrcode');
       const canvas = canvasRef.current;
@@ -115,29 +264,56 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
         setQrCodeUrl(dataUrl);
         setQrData(qrText);
         
+        // Also draw on PIP canvas for live preview
+        if (pipCanvasRef.current) {
+          const pipCanvas = pipCanvasRef.current;
+          const pipCtx = pipCanvas.getContext('2d');
+          if (pipCtx) {
+            pipCanvas.width = 120;
+            pipCanvas.height = 120;
+            pipCtx.clearRect(0, 0, pipCanvas.width, pipCanvas.height);
+            
+            // Draw the main canvas content to PIP canvas
+            pipCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, 120, 120);
+          }
+        }
+        
         // Only add to history when manually generated (not real-time)
         if (showToast) {
+          // For PIN-protected QR codes, save the original data to history, not the Firebase ID
+          let historyData = qrText;
+          if (isPinProtected && pinCode.trim() && qrText.startsWith('PIN_PROTECTED:')) {
+            historyData = generateBaseData();
+          }
+          
+          console.log('📝 Adding to history:', { historyData, qrText, isPinProtected });
+          
         onGenerate({
           type: 'generated',
-            data: qrText,
+            data: historyData,
           dataType
         });
 
+          const description = isPinProtected && pinCode.trim() 
+            ? "PIN-protected QR code generated and stored in Firebase!"
+            : "QR code generated successfully!";
+
         toast({
           title: "Success",
-          description: "QR code generated successfully!"
+            description
         });
         }
       }
     } catch (error) {
       console.error('Error generating QR code:', error);
       if (showToast) {
-      toast({
-        title: "Error",
-        description: "Failed to generate QR code",
-        variant: "destructive"
-      });
-    }
+        const errorMessage = error instanceof Error ? error.message : 'Failed to generate QR code';
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -228,8 +404,101 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
     });
   };
 
-  const handleGenerateClick = () => {
-    const data = generateQRData();
+  const togglePinVisibility = () => {
+    setShowPin(!showPin);
+  };
+
+  // PIP QR Component with enhanced animations
+  const PipQRPreview = () => {
+    if (!isPipMode || !qrCodeUrl) return null;
+
+    return (
+      <div
+        className="fixed z-50 transition-all duration-700 ease-out"
+        style={{
+          right: '20px',
+          bottom: '20px',
+          transform: `scale(${pipScale}) rotate(${isPipMode ? '0deg' : '180deg'})`,
+          opacity: isPipMode ? 1 : 0,
+          filter: isPipMode ? 'blur(0px)' : 'blur(10px)',
+        }}
+      >
+        <Card className="bg-white shadow-2xl border-2 border-purple-200 rounded-xl overflow-hidden hover:shadow-3xl transition-all duration-300 hover:scale-105">
+          {/* Animated gradient border */}
+          <div className="absolute inset-0 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 rounded-xl opacity-75 animate-pulse"></div>
+          <div className="relative bg-white m-0.5 rounded-xl">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-gradient-to-r from-green-400 to-green-600 rounded-full animate-pulse shadow-sm"></div>
+                  <span className="text-xs font-medium text-gray-700 animate-pulse">Live Preview</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    qrDisplayRef?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="h-6 w-6 p-0 hover:bg-purple-100 hover:scale-110 transition-all duration-200"
+                >
+                  <Minimize2 className="h-3 w-3" />
+                </Button>
+              </div>
+              
+              <div className="relative group">
+                {/* Animated QR container */}
+                                  <div className="relative overflow-hidden rounded-lg">
+                    <canvas
+                      ref={pipCanvasRef}
+                      className="border border-gray-200 rounded-lg shadow-sm transition-all duration-300 group-hover:shadow-md"
+                      style={{ 
+                        width: '120px', 
+                        height: '120px',
+                        display: 'block'
+                      }}
+                    />
+                  
+                  {/* Animated scan lines */}
+                  <div className="absolute inset-0 h-2 animate-pulse opacity-50">
+                    <div className="w-full h-full bg-gradient-to-r from-transparent via-blue-400/30 to-transparent animate-bounce"></div>
+                  </div>
+                </div>
+                
+                {isPinProtected && (
+                  <div className="absolute -top-1 -right-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs px-1 py-0.5 rounded-full font-medium shadow-lg animate-bounce">
+                    <Shield className="h-3 w-3" />
+                  </div>
+                )}
+                
+                {/* Floating particles */}
+                <div className="absolute -top-2 -left-2 w-1 h-1 bg-purple-400 rounded-full animate-ping opacity-75"></div>
+                <div className="absolute -bottom-2 -right-2 w-1 h-1 bg-pink-400 rounded-full animate-ping opacity-75" style={{animationDelay: '0.5s'}}></div>
+              </div>
+              
+              <div className="mt-2 text-center">
+                <p className="text-xs text-gray-600 font-medium">
+                  {isPinProtected ? (
+                    <span className="flex items-center justify-center gap-1">
+                      <Lock className="h-3 w-3" />
+                      PIN Protected
+                    </span>
+                  ) : (
+                    'Ready to scan'
+                  )}
+                </p>
+              </div>
+            </CardContent>
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
+  const handleGenerateClick = async () => {
+    try {
+      const data = await generateQRDataForSaving();
+      console.log('🔧 Generated data for saving:', data);
+      
     if (!data.trim()) {
       toast({
         title: "Error",
@@ -238,7 +507,19 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
       });
       return;
     }
-    generateQRCodeInternal(data, true);
+      
+      // Generate the actual QR code with the Firebase ID
+      await generateQRCodeInternal(data, true, true);
+      
+      console.log('✅ QR code generated successfully for saving');
+    } catch (error) {
+      console.error('❌ Error in handleGenerateClick:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate QR code",
+        variant: "destructive"
+      });
+    }
   };
 
   const downloadQRCode = () => {
@@ -275,9 +556,9 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
   // Real-time QR code generation as user types
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      const data = generateQRData();
+      const data = generateQRDataForPreview();
       if (data.trim()) {
-        generateQRCodeInternal(data, false);
+        generateQRCodeInternal(data, false, false);
       } else {
         setQrCodeUrl('');
         setQrData('');
@@ -285,7 +566,7 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [textData, urlData, wifiData, contactData, emailData, smsData, dataType, qrColor, bgColor, errorCorrectionLevel, qrSize, logoPreview]);
+  }, [textData, urlData, wifiData, contactData, emailData, smsData, dataType, qrColor, bgColor, errorCorrectionLevel, qrSize, logoPreview, isPinProtected, pinCode]);
 
   const renderDataTypeForm = () => {
     switch (dataType) {
@@ -468,7 +749,8 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={containerRef}>
+        <PipQRPreview />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input Form */}
         <div className="space-y-4">
@@ -639,21 +921,126 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
           </Button>
         </div>
 
+        {/* PIN Protection Section */}
+        {qrCodeUrl && (
+          <div 
+            className="space-y-4" 
+            ref={(el) => setPinSectionRef(el)}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Shield className="h-5 w-5 text-blue-600" />
+              <h3 className="text-lg font-semibold gradient-text">PIN Protection</h3>
+            </div>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Lock className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <Label className="text-sm font-medium text-blue-900">
+                      Enable PIN Protection
+                    </Label>
+                    <p className="text-xs text-blue-700">
+                      Require a PIN to view QR code content when scanned
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={isPinProtected}
+                  onCheckedChange={setIsPinProtected}
+                />
+              </div>
+              
+              {isPinProtected && (
+                <div className="space-y-2">
+                  <Label htmlFor="pin-code" className="text-sm font-medium text-blue-900">
+                    Enter PIN Code
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="pin-code"
+                      type={showPin ? "text" : "password"}
+                      placeholder="Enter 4-8 digit PIN"
+                      value={pinCode}
+                      onChange={(e) => {
+                        setPinCode(e.target.value);
+                        // Trigger PIP mode update when PIN changes
+                        setTimeout(() => handleScroll(), 100);
+                      }}
+                      maxLength={8}
+                      className="bg-white border-blue-300 focus:border-blue-500 transition-all duration-300 focus:ring-2 focus:ring-blue-200 pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={togglePinVisibility}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-blue-700"
+                      tabIndex={-1}
+                    >
+                      {showPin ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-blue-600">
+                    💡 Users will need to enter this PIN to view the QR code content
+                  </p>
+                </div>
+              )}
+              
+              {isPinProtected && pinCode && (
+                <div className="bg-green-100 border border-green-300 rounded p-3">
+                  <div className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-800">
+                      PIN Protection Active
+                    </span>
+                  </div>
+                  <p className="text-xs text-green-700 mt-1">
+                    This QR code is now protected with PIN: {pinCode.replace(/./g, '•')}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* QR Code Display */}
-        <div className="flex flex-col items-center space-y-4">
-          <Card className="p-6 relative">
+        <div 
+          className="flex flex-col items-center space-y-4"
+          ref={(el) => setQrDisplayRef(el)}
+        >
+          <Card className={`p-6 relative transition-all duration-500 ${isPipMode ? 'opacity-50 scale-95' : 'opacity-100 scale-100'}`}>
             {qrCodeUrl && (
               <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-medium shadow-lg animate-pulse">
                 ⚡ Live Preview
               </div>
             )}
+            {isPinProtected && pinCode && (
+              <div className="absolute -top-2 -left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-medium shadow-lg animate-pulse">
+                🔒 PIN Protected
+              </div>
+            )}
+            {isPipMode && (
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-100/50 to-pink-100/50 rounded-lg flex items-center justify-center">
+                <div className="text-center">
+                  <Minimize2 className="h-8 w-8 mx-auto mb-2 text-purple-600 animate-pulse" />
+                  <p className="text-sm font-medium text-purple-800">Preview in PIP Mode</p>
+                  <p className="text-xs text-purple-600">Scroll up to return</p>
+                </div>
+              </div>
+            )}
             <CardContent className="flex flex-col items-center space-y-4 p-0">
-              <div style={{ width: qrSize, height: qrSize }} className="flex items-center justify-center">
+              <div style={{ width: qrSize, height: qrSize }} className="flex items-center justify-center relative">
               <canvas
                 ref={canvasRef}
                   className="border border-gray-200 rounded-lg shadow-lg"
                 style={{ display: qrCodeUrl ? 'block' : 'none' }}
               />
+              {isPinProtected && pinCode && qrCodeUrl && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 rounded-lg">
+                  <div className="bg-white bg-opacity-90 px-3 py-1 rounded-full text-xs font-medium text-gray-800 shadow-lg">
+                    🔒 Preview Mode
+                  </div>
+                </div>
+              )}
               {!qrCodeUrl && (
                   <div 
                     className="border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-500 space-y-2"
@@ -671,6 +1058,21 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
           </Card>
 
           {qrCodeUrl && (
+            <div className="space-y-3">
+              {isPinProtected && pinCode && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Shield className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-800">PIN Protection Active</span>
+                  </div>
+                  <p className="text-xs text-blue-700">
+                    This is a preview. Click "Save to History" to generate the actual PIN-protected QR code.
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    The saved QR code will only contain a secure ID that external scanners cannot decrypt.
+                  </p>
+                </div>
+              )}
             <div className="flex gap-2">
               <Button onClick={downloadQRCode} variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-2" />
@@ -684,6 +1086,7 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
                 )}
                 {copied ? 'Copied!' : 'Copy Data'}
               </Button>
+              </div>
             </div>
           )}
         </div>

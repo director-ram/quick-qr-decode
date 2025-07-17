@@ -8,7 +8,10 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "node deploy.js",
+    "deploy:env": "bash netlify-env-setup.sh",
+    "deploy:env:win": "powershell -ExecutionPolicy Bypass -File netlify-env-setup.ps1"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

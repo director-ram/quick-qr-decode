@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 
 // >>>>> Import Firestore <<<<<
 import { db } from '../firebase';
-import { collection, addDoc, onSnapshot, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, where, orderBy, serverTimestamp, deleteDoc, doc, getDocs } from 'firebase/firestore';
 // ^^^^^ Imports for Firestore ^^^^^
 
 export interface QRHistoryItem {
@@ -52,16 +52,66 @@ const Index = () => {
     
     try {
       const docRef = await addDoc(collection(db, "qr_history"), {
-        ...item,
+                ...item,
         userId: currentUser.uid,
         timestamp: serverTimestamp()
       });
       console.log("Successfully added to history with ID:", docRef.id);
-    } catch (error) {
+      } catch (error) {
       console.error("Error adding to history:", error);
       toast({
         title: "Failed to Save",
         description: "Could not save to history. Check console for details.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const clearHistory = async () => {
+    if (!currentUser) {
+      console.log("No current user, cannot clear history");
+      return;
+    }
+
+    console.log("Clearing history for user:", currentUser.uid);
+    
+    try {
+      // Show loading toast
+      toast({
+        title: "🗑️ Clearing History...",
+        description: "Deleting all QR history records..."
+      });
+
+      // Query all documents for the current user
+      const q = query(
+        collection(db, "qr_history"), 
+        where("userId", "==", currentUser.uid)
+      );
+
+      // Get all documents
+      const querySnapshot = await getDocs(q);
+      console.log(`Found ${querySnapshot.docs.length} documents to delete`);
+
+      // Delete each document
+      const deletePromises = querySnapshot.docs.map(docSnapshot => 
+        deleteDoc(doc(db, "qr_history", docSnapshot.id))
+      );
+
+      // Wait for all deletions to complete
+      await Promise.all(deletePromises);
+
+      console.log("Successfully cleared all history");
+      
+      toast({
+        title: "✅ History Cleared",
+        description: `Deleted ${querySnapshot.docs.length} QR history records`
+      });
+
+    } catch (error) {
+      console.error("Error clearing history:", error);
+      toast({
+        title: "❌ Clear Failed",
+        description: "Could not clear history. Please try again.",
         variant: "destructive"
       });
     }
@@ -268,7 +318,7 @@ const Index = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-8">
-                  <QRHistory history={history} onClearHistory={() => {}} />
+                  <QRHistory history={history} onClearHistory={clearHistory} />
                 </CardContent>
               </Card>
             </TabsContent>

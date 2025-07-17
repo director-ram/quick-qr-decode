@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Trash2, Copy, Check, QrCode, ScanQrCode, Calendar, Filter } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Trash2, Copy, Check, QrCode, ScanQrCode, Calendar, Filter, Eye } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import QRDataDialog from './QRDataDialog';
 import type { QRHistoryItem } from '@/pages/Index';
 
 interface QRHistoryProps {
@@ -17,6 +19,8 @@ interface QRHistoryProps {
 const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
   const [filter, setFilter] = useState<'all' | 'generated' | 'scanned'>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<QRHistoryItem | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const filteredHistory = history.filter(item => 
@@ -41,6 +45,16 @@ const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
   const formatData = (data: string, maxLength: number = 100) => {
     if (data.length <= maxLength) return data;
     return data.substring(0, maxLength) + '...';
+  };
+
+  const handleViewDetails = (item: QRHistoryItem) => {
+    setSelectedItem(item);
+    setIsDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+    setSelectedItem(null);
   };
 
   const getDataTypeLabel = (item: QRHistoryItem) => {
@@ -98,15 +112,39 @@ const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
           </Select>
         </div>
         
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
         <Button 
-          onClick={onClearHistory} 
           variant="outline" 
           size="sm"
-          className="text-red-600 hover:text-red-700"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
         >
           <Trash2 className="h-4 w-4 mr-2" />
           Clear History
         </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Trash2 className="h-5 w-5 text-red-600" />
+                Clear All History?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete all your QR code history ({history.length} items). 
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={onClearHistory}
+                className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              >
+                Yes, Clear All
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {/* History Items */}
@@ -136,16 +174,30 @@ const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
                     </span>
                   </div>
                   
-                  <div className="bg-gray-50 p-3 rounded text-sm font-mono break-all">
+                  <div 
+                    className="bg-gray-50 p-3 rounded text-sm font-mono break-all cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => handleViewDetails(item)}
+                  >
                     {formatData(item.data)}
                   </div>
                 </div>
                 
+                <div className="flex gap-1">
+                  <Button
+                    onClick={() => handleViewDetails(item)}
+                    variant="ghost"
+                    size="sm"
+                    className="flex-shrink-0"
+                    title="View full details"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
                 <Button
                   onClick={() => copyToClipboard(item.data, item.id)}
                   variant="ghost"
                   size="sm"
                   className="flex-shrink-0"
+                    title="Copy to clipboard"
                 >
                   {copiedId === item.id ? (
                     <Check className="h-4 w-4 text-green-600" />
@@ -153,6 +205,7 @@ const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
                     <Copy className="h-4 w-4" />
                   )}
                 </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -166,6 +219,13 @@ const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
           </AlertDescription>
         </Alert>
       )}
+
+      {/* QR Data Dialog */}
+      <QRDataDialog
+        isOpen={isDialogOpen}
+        onClose={handleCloseDialog}
+        item={selectedItem}
+      />
     </div>
   );
 };

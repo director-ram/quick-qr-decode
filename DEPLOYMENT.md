@@ -30,22 +30,38 @@ This guide will help you deploy your QR Code Scanner app to Netlify with Firebas
 4. Select a location (choose closest to your users)
 
 ### 4. Set Firestore Security Rules
+**IMPORTANT:** Copy and paste these exact rules to fix the history saving issue:
+
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can only access their own QR history
-    match /qr-history/{userId}/items/{document} {
+    // QR History Collection - Users can only access their own history records
+    match /qr_history/{document} {
+      allow read, write, delete: if request.auth != null && 
+                                 request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+                   request.auth.uid == request.resource.data.userId;
+    }
+    
+    // User profiles - Allow users to read/write their own user document
+    match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Allow users to read/write their own user document
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
 ```
+
+**To apply these rules:**
+1. Go to **Firestore Database** → **Rules** tab
+2. Replace the existing rules with the code above
+3. Click **"Publish"**
+4. Test your app - history should now save properly!
 
 ### 5. Get Firebase Configuration
 1. Go to **Project Settings** (gear icon)

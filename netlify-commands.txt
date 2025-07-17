@@ -1,0 +1,38 @@
+# Netlify Environment Variables - Manual Commands
+# Copy and paste these commands one by one in your terminal
+
+# 1. Install Netlify CLI (if not installed)
+npm install -g netlify-cli
+
+# 2. Login to Netlify
+netlify login
+
+# 3. Navigate to your project directory
+cd /c/Users/khema/OneDrive/Documents/quick-qr-decode-main
+
+# 4. Set each environment variable (copy-paste one by one)
+netlify env:set VITE_FIREBASE_API_KEY "AIzaSyDmv9blz5rP55kp8_a9gnGdn1UQcI1753k"
+
+netlify env:set VITE_FIREBASE_AUTH_DOMAIN "qr-users-8e1c4.firebaseapp.com"
+
+netlify env:set VITE_FIREBASE_DATABASE_URL "https://qr-users-8e1c4-default-rtdb.asia-southeast1.firebasedatabase.app"
+
+netlify env:set VITE_FIREBASE_PROJECT_ID "qr-users-8e1c4"
+
+netlify env:set VITE_FIREBASE_STORAGE_BUCKET "qr-users-8e1c4.firebasestorage.app"
+
+netlify env:set VITE_FIREBASE_MESSAGING_SENDER_ID "802989435149"
+
+netlify env:set VITE_FIREBASE_APP_ID "1:802989435149:web:a14939bb8fe04599a3e844"
+
+netlify env:set VITE_FIREBASE_MEASUREMENT_ID "G-YQLS5FXCX1"
+
+# 5. Verify environment variables are set
+netlify env:list
+
+# 6. Build and deploy
+npm run build
+netlify deploy --prod
+
+# 7. Check deployment status
+netlify status 
