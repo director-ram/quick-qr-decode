@@ -290,7 +290,7 @@ const Index = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-8">
-                  <QRGenerator onGenerate={addToHistory} />
+                  <QRGenerator onGenerate={addToHistory} history={history} />
                 </CardContent>
               </Card>
             </TabsContent>

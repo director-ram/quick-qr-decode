@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider, connectAuthEmulator } from "firebase/auth";
 
+
 // Firebase project configuration - uses environment variables in production
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDmv9blz5rP55kp8_a9gnGdn1UQcI1753k",

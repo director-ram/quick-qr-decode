@@ -13,14 +13,19 @@ import { encryptData, isValidPin } from '@/utils/encryption';
 import { storePinProtectedQRCode } from '@/utils/qrCodeService';
 import { useAuth } from '@/contexts/AuthContext';
 import type { QRHistoryItem } from '@/pages/Index';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+// Remove Firestore imports
+// import { collection, query, where, getDocs } from "firebase/firestore";
+// import { db } from "@/firebase";
 
 interface QRGeneratorProps {
   onGenerate: (item: Omit<QRHistoryItem, 'id' | 'timestamp' | 'userId'>) => void;
+  history: QRHistoryItem[];
 }
 
 type QRDataType = 'text' | 'url' | 'wifi' | 'contact' | 'email' | 'sms';
 
-const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
+const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
   const [dataType, setDataType] = useState<QRDataType>('text');
   const [qrData, setQrData] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
@@ -67,6 +72,11 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
   const [isPinProtected, setIsPinProtected] = useState(false);
   const [pinCode, setPinCode] = useState('');
   const [showPin, setShowPin] = useState(false);
+
+  // Save to History Popup state
+  const [showSaveToHistoryPopup, setShowSaveToHistoryPopup] = useState(false);
+  const [pendingPinQrId, setPendingPinQrId] = useState<string | null>(null);
+  const [pendingPinQrData, setPendingPinQrData] = useState<string | null>(null);
 
   // PIP Mode and Animation state
   const [isPipMode, setIsPipMode] = useState(false);
@@ -219,6 +229,17 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
     return baseData;
   };
 
+  // Helper to check if a PIN-protected QR ID is already in history
+  const isPinQrInHistory = (qrId: string) => {
+    return history.some(item =>
+      item.type === 'generated' &&
+      item.data &&
+      typeof item.data === 'string' &&
+      item.data.includes(qrId)
+    );
+  };
+
+  // Patch generateQRCodeInternal to trigger popup for PIN-protected QRs
   const generateQRCodeInternal = async (data?: string, showToast: boolean = true, isForSaving: boolean = false) => {
     try {
       let qrText = data;
@@ -230,11 +251,10 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
         }
       }
       if (!qrText.trim()) {
-        // Clear QR code if no data
         setQrCodeUrl('');
         setQrData('');
-      return;
-    }
+        return;
+      }
       // Dynamic import to avoid build issues
       const QRCode = await import('qrcode');
       const canvas = canvasRef.current;
@@ -280,7 +300,6 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
         
         // Only add to history when manually generated (not real-time)
         if (showToast) {
-          // For PIN-protected QR codes, save the original data to history, not the Firebase ID
           let historyData = qrText;
           if (isPinProtected && pinCode.trim() && qrText.startsWith('PIN_PROTECTED:')) {
             historyData = generateBaseData();
@@ -293,7 +312,17 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
             data: historyData,
           dataType
         });
-
+        // --- PIN-protected QR popup logic ---
+        // Remove this block so the popup is not shown after saving to history
+        // if (isPinProtected && pinCode.trim() && qrText.startsWith('PIN_PROTECTED:')) {
+        //   const qrId = qrText.split(':')[1];
+        //   if (qrId && !isPinQrInHistory(qrId)) {
+        //     setPendingPinQrId(qrId);
+        //     setPendingPinQrData(historyData);
+        //     setShowSaveToHistoryPopup(true);
+        //   }
+        // }
+        // --- end popup logic ---
           const description = isPinProtected && pinCode.trim() 
             ? "PIN-protected QR code generated and stored in Firebase!"
             : "QR code generated successfully!";
@@ -522,9 +551,20 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
     }
   };
 
+  const [showDownloadPinPopup, setShowDownloadPinPopup] = useState(false);
+
   const downloadQRCode = () => {
     if (!qrCodeUrl) return;
-    
+
+    // If PIN protected and not saved to history, show popup
+    if (isPinProtected && pinCode && qrData.startsWith('PIN_PROTECTED:')) {
+      const qrId = qrData.split(':')[1];
+      if (qrId && !isPinQrInHistory(qrId)) {
+        setShowDownloadPinPopup(true);
+        return;
+      }
+    }
+
     const link = document.createElement('a');
     link.download = `qr-code-${Date.now()}.png`;
     link.href = qrCodeUrl;
@@ -916,6 +956,7 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
             </div>
           </div>
 
+          {/* Main Save to History button (in the main UI, not the popup) */}
           <Button onClick={handleGenerateClick} className="w-full" size="lg">
             Save to History
           </Button>
@@ -1091,6 +1132,46 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate }) => {
           )}
         </div>
       </div>
+      <Dialog open={showSaveToHistoryPopup} onOpenChange={setShowSaveToHistoryPopup}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save to history for QR decryption later</DialogTitle>
+          </DialogHeader>
+          <div className="py-2 text-sm text-gray-700">
+            Saving this QR to your history allows you to decrypt it later with your PIN.
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                if (pendingPinQrData) {
+                  onGenerate({ type: 'generated', data: pendingPinQrData, dataType });
+                }
+                setShowSaveToHistoryPopup(false);
+              }}
+            >
+              Save to History
+            </Button>
+            <Button variant="outline" onClick={() => setShowSaveToHistoryPopup(false)}>
+              Dismiss
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showDownloadPinPopup} onOpenChange={setShowDownloadPinPopup}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>PIN-Protected QR Not Saved</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 text-base text-center text-gray-800">
+            <p>This QR code is PIN-protected but has not been saved to your history.</p>
+            <p className="mt-2">If you download it now, you may not be able to decrypt it later.</p>
+            <p className="mt-2 font-semibold">Please save to history for secure decryption later.</p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowDownloadPinPopup(false)} className="w-full">Dismiss</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
