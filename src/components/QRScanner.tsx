@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Copy, Check, Camera, CameraOff, AlertCircle, Shield } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5QrcodeScanner, Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import PinInputDialog from './PinInputDialog';
 import { decryptData } from '@/utils/encryption';
 import { verifyPinAndGetData, isPinProtectedQRCode, getStorageStats, verifyPinAndGetDataWithRecovery, batchMigrateOldQRCodes } from '@/utils/qrCodeService';
@@ -62,7 +62,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
       console.log('🔐 Parsed QR ID:', qrId);
       console.log('🔐 Entered PIN:', enteredPin);
 
-      try {
+          try {
         // Verify PIN with Firebase and get decrypted data (with recovery support for old QR codes)
         const decryptedData = await verifyPinAndGetDataWithRecovery(qrId, enteredPin);
             
@@ -197,6 +197,11 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
       setScanStartTime(Date.now());
       console.log('🎯 Scanner initialized, starting render...');
 
+      // Enhance scanner UI after a short delay to ensure elements are rendered
+      setTimeout(() => {
+        enhanceScannerUI();
+      }, 500);
+
       scanner.render(
         (decodedText) => {
           console.log('🎯 QR Code SUCCESSFULLY scanned:', decodedText);
@@ -268,6 +273,8 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
             ? 'Phone number detected! Opening...'
             : decodedText.startsWith('sms:')
             ? 'SMS detected! Opening...'
+            : (decodedText.startsWith('upi://') || decodedText.startsWith('UPI://') || isUPIQRCode(decodedText))
+            ? 'UPI payment QR code detected! Opening payment app...'
             : `Found: ${decodedText.length > 50 ? decodedText.substring(0, 50) + '...' : decodedText}`;
           
           toast({
@@ -296,6 +303,117 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
       setError('Failed to initialize camera scanner. Please try again.');
       setIsScanning(false);
     }
+  };
+
+  const enhanceScannerUI = () => {
+    const container = document.getElementById('qr-scanner-container');
+    if (!container) return;
+
+    // Find and style all select elements (camera dropdowns)
+    const selects = container.querySelectorAll('select');
+    selects.forEach((select: Element) => {
+      const htmlSelect = select as HTMLSelectElement;
+      if (!htmlSelect.classList.contains('enhanced')) {
+        htmlSelect.classList.add('enhanced');
+        htmlSelect.style.cssText = `
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+          color: white !important;
+          border: 2px solid rgba(255, 255, 255, 0.3) !important;
+          border-radius: 12px !important;
+          padding: 12px 40px 12px 16px !important;
+          font-size: 16px !important;
+          font-weight: 600 !important;
+          cursor: pointer !important;
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4) !important;
+          min-height: 48px !important;
+          width: 100% !important;
+          margin: 8px 0 !important;
+          appearance: none !important;
+        `;
+      }
+    });
+
+    // Find and style all links (Start Scanning, Scan Image File)
+    const links = container.querySelectorAll('a');
+    links.forEach((link: Element) => {
+      const htmlLink = link as HTMLAnchorElement;
+      if (!htmlLink.classList.contains('enhanced')) {
+        htmlLink.classList.add('enhanced');
+        const href = htmlLink.getAttribute('href') || '';
+        const text = htmlLink.textContent?.toLowerCase() || '';
+        
+        if (href.includes('start') || text.includes('start') || text.includes('scanning')) {
+          // Green button for "Start Scanning"
+          htmlLink.style.cssText = `
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            color: white !important;
+            border: 2px solid rgba(255, 255, 255, 0.3) !important;
+            border-radius: 12px !important;
+            padding: 14px 24px !important;
+            font-size: 16px !important;
+            font-weight: 700 !important;
+            cursor: pointer !important;
+            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4) !important;
+            display: inline-block !important;
+            text-align: center !important;
+            text-decoration: none !important;
+            min-height: 48px !important;
+            width: 100% !important;
+            margin: 8px 0 !important;
+            line-height: 1.5 !important;
+            transition: all 0.3s ease !important;
+          `;
+        } else if (href.includes('file') || href.includes('image') || text.includes('file') || text.includes('image')) {
+          // Orange button for "Scan Image File"
+          htmlLink.style.cssText = `
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+            color: white !important;
+            border: 2px solid rgba(255, 255, 255, 0.3) !important;
+            border-radius: 12px !important;
+            padding: 12px 20px !important;
+            font-size: 15px !important;
+            font-weight: 600 !important;
+            cursor: pointer !important;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4) !important;
+            display: inline-block !important;
+            text-align: center !important;
+            text-decoration: none !important;
+            min-height: 44px !important;
+            width: 100% !important;
+            margin: 8px 0 !important;
+            line-height: 1.5 !important;
+            transition: all 0.3s ease !important;
+          `;
+        }
+      }
+    });
+
+    // Find and style buttons
+    const buttons = container.querySelectorAll('button');
+    buttons.forEach((button: Element) => {
+      const htmlButton = button as HTMLButtonElement;
+      if (!htmlButton.classList.contains('enhanced')) {
+        htmlButton.classList.add('enhanced');
+        const text = htmlButton.textContent?.toLowerCase() || '';
+        if (text.includes('start') || text.includes('scan')) {
+          htmlButton.style.cssText = `
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            color: white !important;
+            border: 2px solid rgba(255, 255, 255, 0.3) !important;
+            border-radius: 12px !important;
+            padding: 14px 24px !important;
+            font-size: 16px !important;
+            font-weight: 700 !important;
+            cursor: pointer !important;
+            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4) !important;
+            min-height: 48px !important;
+            width: 100% !important;
+            margin: 8px 0 !important;
+            transition: all 0.3s ease !important;
+          `;
+        }
+      }
+    });
   };
 
   const stopScanning = async () => {
@@ -393,6 +511,13 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
           title: "💬 Opening SMS App",
           description: "Redirecting to your messaging application"
         });
+        return;
+      }
+      
+      // Handle UPI payment QR codes
+      if (data.startsWith('upi://') || data.startsWith('UPI://') || isUPIQRCode(data)) {
+        console.log('💳 Redirecting to UPI payment app');
+        handleUPIPayment(data);
         return;
       }
       
@@ -545,6 +670,108 @@ END:VCARD`;
   const isValidEmail = (string: string): boolean => {
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailPattern.test(string);
+  };
+
+  const isUPIQRCode = (data: string): boolean => {
+    // Check for UPI protocol
+    if (data.toLowerCase().startsWith('upi://')) {
+      return true;
+    }
+    
+    // Check for UPI QR code format (starts with 000201 which is common for UPI QR codes)
+    if (data.startsWith('000201')) {
+      return true;
+    }
+    
+    // Check for UPI payment parameters
+    if (data.includes('upi://pay') || data.includes('UPI://pay')) {
+      return true;
+    }
+    
+    // Check for common UPI patterns
+    const upiPattern = /(?:upi|UPI)[:\/\/]?pay/i;
+    if (upiPattern.test(data)) {
+      return true;
+    }
+    
+    return false;
+  };
+
+  const handleUPIPayment = (data: string) => {
+    try {
+      console.log('💳 Processing UPI payment QR code:', data);
+      
+      // Normalize UPI URL (ensure it starts with upi://)
+      let upiUrl = data;
+      if (!data.toLowerCase().startsWith('upi://')) {
+        // If it's a UPI QR code format (000201...), we need to parse it
+        // For now, try to construct a basic upi:// URL
+        if (data.startsWith('000201')) {
+          // This is a UPI QR code in a specific format
+          // We'll try to open it as-is, or construct a proper URL
+          upiUrl = `upi://pay?qr=${encodeURIComponent(data)}`;
+        } else {
+          // Try to add upi:// prefix if missing
+          upiUrl = `upi://${data.replace(/^(upi|UPI)[:\/\/]?/i, '')}`;
+        }
+      }
+      
+      // Try to open UPI payment app
+      // On mobile devices, this should open PhonePe, GPay, Paytm, etc.
+      // On desktop, it might not work, so we'll show instructions
+      const userAgent = navigator.userAgent;
+      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+      
+      if (isMobile) {
+        // On mobile, try to open the UPI app directly
+        window.location.href = upiUrl;
+        
+        // Fallback: Try Android intent for PhonePe
+        setTimeout(() => {
+          try {
+            const phonepeIntent = `intent://pay?${upiUrl.split('?')[1] || ''}#Intent;scheme=phonepe;package=com.phonepe.app;end`;
+            window.location.href = phonepeIntent;
+          } catch (e) {
+            console.log('PhonePe intent failed:', e);
+          }
+        }, 500);
+        
+        // Fallback: Try GPay
+        setTimeout(() => {
+          try {
+            const gpayIntent = `intent://pay?${upiUrl.split('?')[1] || ''}#Intent;scheme=tez;package=com.google.android.apps.nfc.payment;end`;
+            window.location.href = gpayIntent;
+          } catch (e) {
+            console.log('GPay intent failed:', e);
+          }
+        }, 1000);
+        
+        toast({
+          title: "💳 Opening Payment App",
+          description: "Redirecting to PhonePe, GPay, or your default UPI app...",
+          duration: 3000
+        });
+      } else {
+        // On desktop, show instructions
+        toast({
+          title: "💳 UPI Payment QR Code Detected",
+          description: "Please scan this QR code with your mobile payment app (PhonePe, GPay, Paytm, etc.)",
+          duration: 5000
+        });
+        
+        // Still try to open the URL (might work in some browsers)
+        window.location.href = upiUrl;
+      }
+      
+    } catch (error) {
+      console.error('Error handling UPI payment:', error);
+      toast({
+        title: "❌ UPI Payment Error",
+        description: "Failed to open payment app. Please scan this QR code with your mobile payment app.",
+        variant: "destructive",
+        duration: 5000
+      });
+    }
   };
 
   const handleWiFiConnection = async (wifiData: string) => {
@@ -1014,8 +1241,80 @@ This QR code is protected with a PIN. The content will be displayed after succes
         if (part.startsWith('ORG:')) formatted += `Organization: ${part.substring(4)}\n`;
       });
       return formatted.trim();
+    } else if (data.startsWith('upi://') || data.startsWith('UPI://') || isUPIQRCode(data)) {
+      // Parse UPI payment details
+      try {
+        const upiUrl = new URL(data.startsWith('upi://') || data.startsWith('UPI://') ? data : `upi://${data}`);
+        const params = new URLSearchParams(upiUrl.search);
+        
+        const payeeName = params.get('pn') || 'Unknown';
+        const payeeVPA = params.get('pa') || 'Unknown';
+        const amount = params.get('am') || 'Not specified';
+        const currency = params.get('cu') || 'INR';
+        const transactionNote = params.get('tn') || '';
+        
+        return `💳 UPI Payment QR Code
+
+👤 Payee Name: ${payeeName}
+📧 UPI ID: ${payeeVPA}
+💰 Amount: ${amount} ${currency}
+📝 Note: ${transactionNote || 'No note'}
+
+💡 This QR code will automatically open your payment app (PhonePe, GPay, Paytm, etc.) to complete the payment.`;
+      } catch (error) {
+        // If parsing fails, return basic info
+        return `💳 UPI Payment QR Code
+
+${data}
+
+💡 This QR code will automatically open your payment app (PhonePe, GPay, Paytm, etc.) to complete the payment.`;
+      }
     }
     return data;
+  };
+
+  // Helper function to preprocess image for better QR detection
+  const preprocessImage = (img: HTMLImageElement): HTMLCanvasElement => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Could not get canvas context');
+
+    // Set canvas size (resize if too large for better performance)
+    const maxSize = 2000;
+    let width = img.width;
+    let height = img.height;
+    
+    if (width > maxSize || height > maxSize) {
+      const ratio = Math.min(maxSize / width, maxSize / height);
+      width = width * ratio;
+      height = height * ratio;
+    }
+    
+    canvas.width = width;
+    canvas.height = height;
+
+    // Draw image with enhanced contrast
+    ctx.drawImage(img, 0, 0, width, height);
+    
+    // Apply image enhancement for better QR code detection
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    
+    // Enhance contrast and brightness
+    for (let i = 0; i < data.length; i += 4) {
+      // Increase contrast
+      const factor = 1.5;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      
+      data[i] = Math.min(255, Math.max(0, (r - 128) * factor + 128));
+      data[i + 1] = Math.min(255, Math.max(0, (g - 128) * factor + 128));
+      data[i + 2] = Math.min(255, Math.max(0, (b - 128) * factor + 128));
+    }
+    
+    ctx.putImageData(imageData, 0, 0);
+    return canvas;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1045,9 +1344,6 @@ This QR code is protected with a PIN. The content will be displayed after succes
         description: `Scanning ${file.name} for QR codes...`
       });
 
-      // Import QR scanner and scan the image
-      const QrScanner = (await import('qr-scanner')).default;
-      
       // Create image element
       const img = new Image();
       img.src = imageUrl;
@@ -1058,22 +1354,135 @@ This QR code is protected with a PIN. The content will be displayed after succes
         img.onerror = () => reject(new Error('Failed to load image'));
       });
 
-      // Scan for QR code with optimized settings
       console.log('🔍 Scanning image for QR codes...');
-      const result = await QrScanner.scanImage(img);
+      let result: string | null = null;
+      let scanError: Error | null = null;
+
+      // Helper function to extract string from scan result
+      const extractResult = (scanResult: any): string | null => {
+        if (!scanResult) return null;
+        if (typeof scanResult === 'string') return scanResult;
+        if (typeof scanResult === 'object') {
+          // Handle detailed scan result objects
+          if (scanResult.data) return String(scanResult.data);
+          if (scanResult.result) return String(scanResult.result);
+          if (scanResult.text) return String(scanResult.text);
+          // Try to stringify the whole object
+          return JSON.stringify(scanResult);
+        }
+        return String(scanResult);
+      };
+
+      // Method 1: Try qr-scanner library with original image
+      try {
+        const QrScanner = (await import('qr-scanner')).default;
+        const scanResult = await QrScanner.scanImage(img, {
+          returnDetailedScanResult: false,
+          alsoTryWithoutScanRegion: true,
+          maxScansPerFrame: 5,
+          scanDelay: 0,
+        });
+        result = extractResult(scanResult);
+        if (result) {
+          console.log('✅ QR Code found with qr-scanner (original):', result);
+        }
+      } catch (error) {
+        console.log('⚠️ qr-scanner (original) failed:', error);
+        scanError = error as Error;
+      }
+
+      // Method 2: Try qr-scanner with preprocessed image
+      if (!result) {
+        try {
+          const QrScanner = (await import('qr-scanner')).default;
+          const processedCanvas = preprocessImage(img);
+          const processedImg = new Image();
+          processedImg.src = processedCanvas.toDataURL();
+          
+          await new Promise<void>((resolve) => {
+            processedImg.onload = () => resolve();
+          });
+          
+          const scanResult = await QrScanner.scanImage(processedImg, {
+            returnDetailedScanResult: false,
+            alsoTryWithoutScanRegion: true,
+            maxScansPerFrame: 10,
+            scanDelay: 0,
+          });
+          result = extractResult(scanResult);
+          if (result) {
+            console.log('✅ QR Code found with qr-scanner (preprocessed):', result);
+          }
+        } catch (error) {
+          console.log('⚠️ qr-scanner (preprocessed) failed:', error);
+        }
+      }
+
+      // Method 3: Try html5-qrcode as fallback (using file directly)
+      if (!result) {
+        try {
+          const html5QrCode = new Html5Qrcode('temp-scan-container');
+          
+          // Create a temporary container
+          const tempContainer = document.createElement('div');
+          tempContainer.id = 'temp-scan-container';
+          tempContainer.style.display = 'none';
+          document.body.appendChild(tempContainer);
+          
+          // Try with file directly
+          const scanResult = await html5QrCode.scanFile(file, {
+            formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          });
+          
+          result = extractResult(scanResult);
+          
+          // Clean up
+          await html5QrCode.clear();
+          document.body.removeChild(tempContainer);
+          if (result) {
+            console.log('✅ QR Code found with html5-qrcode:', result);
+          }
+        } catch (error) {
+          console.log('⚠️ html5-qrcode failed:', error);
+          // Clean up temp container if it exists
+          const tempContainer = document.getElementById('temp-scan-container');
+          if (tempContainer && tempContainer.parentElement) {
+            document.body.removeChild(tempContainer);
+          }
+        }
+      }
+
+      // If all methods failed, provide helpful error message
+      if (!result || typeof result !== 'string') {
+        const errorMessage = scanError?.message || 'No QR code detected';
+        const isUPIError = errorMessage.includes('MultiFormat') || errorMessage.includes('NotFoundException');
+        
+        throw new Error(
+          isUPIError
+            ? 'Could not detect QR code. This might be a UPI QR code. Please try:\n1. Ensure the image is clear and well-lit\n2. Make sure the QR code is not cropped or damaged\n3. Try scanning with your phone camera instead\n4. If it\'s a UPI QR, try using the camera scanner for better results'
+            : 'No QR code detected. Make sure the image is clear, the QR code is not damaged, and try again.'
+        );
+      }
       
-      console.log('🎯 QR Code found in file:', result);
+      // Ensure result is a string
+      const qrData = String(result).trim();
+      
+      if (!qrData) {
+        throw new Error('QR code detected but content is empty. Please try a different image.');
+      }
+      
+      console.log('🎯 QR Code found in file:', qrData);
       setScanCount(prev => prev + 1);
       
       // Check if it's a PIN-protected QR code
-      if (result.startsWith('PIN_PROTECTED:')) {
-        console.log('🔒 PIN-protected QR code detected in file:', result);
+      if (qrData.startsWith('PIN_PROTECTED:')) {
+        console.log('🔒 PIN-protected QR code detected in file:', qrData);
         
         // IMPORTANT: Clear any existing scanned data to prevent showing PIN_PROTECTED data
         setScannedData('');
         
         // Show PIN dialog
-        handlePinProtectedQR(result);
+        handlePinProtectedQR(qrData);
         
         toast({
           title: "🔒 PIN Protected QR Code",
@@ -1084,34 +1493,36 @@ This QR code is protected with a PIN. The content will be displayed after succes
       }
       
       // Handle non-PIN-protected codes
-      setScannedData(result);
+      setScannedData(qrData);
       
       // Add to history
       onScan({
         type: 'scanned',
-        data: result
+        data: qrData
       });
 
       // Auto-redirect after a short delay
       setTimeout(() => {
         console.log('🚀 Auto-redirecting after file scan...');
-        handleAutoRedirect(result);
+        handleAutoRedirect(qrData);
       }, 1000); // 1 second delay to show the scanned content first
 
       // Show appropriate toast based on QR type
-      const toastMessage = result.startsWith('WIFI:') 
+      const toastMessage = qrData.startsWith('WIFI:') 
         ? 'WiFi QR code detected! Redirecting...'
-        : result.startsWith('MECARD:')
+        : qrData.startsWith('MECARD:')
         ? 'Contact card detected! Downloading...'
-        : result.startsWith('http')
+        : qrData.startsWith('http')
         ? 'Website detected! Opening...'
-        : result.startsWith('mailto:')
+        : qrData.startsWith('mailto:')
         ? 'Email detected! Opening...'
-        : result.startsWith('tel:')
+        : qrData.startsWith('tel:')
         ? 'Phone number detected! Opening...'
-        : result.startsWith('sms:')
+        : qrData.startsWith('sms:')
         ? 'SMS detected! Opening...'
-        : `Successfully decoded: ${result.length > 50 ? result.substring(0, 50) + '...' : result}`;
+        : (qrData.startsWith('upi://') || qrData.startsWith('UPI://') || isUPIQRCode(qrData))
+        ? 'UPI payment QR code detected! Opening payment app...'
+        : `Successfully decoded: ${qrData.length > 50 ? qrData.substring(0, 50) + '...' : qrData}`;
 
       toast({
         title: "✅ QR Code Found!",
@@ -1124,19 +1535,53 @@ This QR code is protected with a PIN. The content will be displayed after succes
       // Check if it's a "no QR code found" error vs other errors
       const errorMessage = error instanceof Error ? error.message : String(error);
       
-      if (errorMessage.includes('No QR code found') || errorMessage.includes('Could not decode')) {
-        setError(`No QR code detected in the uploaded image. Please try a different image with a clear QR code.`);
+      // Check for specific error types
+      const isNoQRCodeError = errorMessage.includes('No QR code found') || 
+                              errorMessage.includes('Could not decode') ||
+                              errorMessage.includes('NotFoundException') ||
+                              errorMessage.includes('MultiFormat');
+      
+      const isTypeError = errorMessage.includes('startsWith') || 
+                         errorMessage.includes('is not a function');
+      
+      if (isNoQRCodeError) {
+        setError(`No QR code detected in the uploaded image. 
+
+Tips to improve detection:
+• Ensure the image is clear and well-lit
+• Make sure the QR code is not cropped or damaged
+• Try using the camera scanner for better results
+• For UPI QR codes, camera scanning works better than file upload`);
         toast({
           title: "❌ No QR Code Found",
-          description: "The image doesn't contain a readable QR code. Try a clearer image.",
-          variant: "destructive"
+          description: "The image doesn't contain a readable QR code. Try a clearer image or use the camera scanner.",
+          variant: "destructive",
+          duration: 5000
+        });
+      } else if (isTypeError) {
+        // This shouldn't happen with the new code, but handle it gracefully
+        setError(`Failed to process the QR code data. Please try:
+• Using the camera scanner instead
+• Ensuring the image format is supported (PNG, JPG)
+• Trying a different image`);
+        toast({
+          title: "❌ Processing Error",
+          description: "There was an issue processing the QR code. Try using the camera scanner instead.",
+          variant: "destructive",
+          duration: 5000
         });
       } else {
-        setError(`Failed to process the image: ${errorMessage}`);
+        setError(`Failed to process the image: ${errorMessage}
+
+Please try:
+• Using the camera scanner for better results
+• Ensuring the image is clear and the QR code is visible
+• Trying a different image format`);
         toast({
           title: "❌ Processing Failed",
-          description: "Failed to scan the image. Please try again.",
-          variant: "destructive"
+          description: "Failed to scan the image. Try using the camera scanner for better results.",
+          variant: "destructive",
+          duration: 5000
         });
       }
     } finally {
@@ -1296,6 +1741,33 @@ This QR code is protected with a PIN. The content will be displayed after succes
     return () => clearInterval(interval);
   }, []);
 
+  // Enhance scanner UI when scanning starts
+  useEffect(() => {
+    if (isScanning) {
+      // Wait for scanner to render, then enhance UI
+      const timer1 = setTimeout(() => enhanceScannerUI(), 500);
+      const timer2 = setTimeout(() => enhanceScannerUI(), 1000);
+      const timer3 = setTimeout(() => enhanceScannerUI(), 2000);
+      
+      // Also enhance on any DOM changes in the scanner container
+      const observer = new MutationObserver(() => {
+        enhanceScannerUI();
+      });
+      
+      const container = document.getElementById('qr-scanner-container');
+      if (container) {
+        observer.observe(container, { childList: true, subtree: true });
+      }
+      
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+        clearTimeout(timer3);
+        observer.disconnect();
+      };
+    }
+  }, [isScanning]);
+
   useEffect(() => {
     return () => {
       if (scannerRef.current) {
@@ -1334,7 +1806,8 @@ This QR code is protected with a PIN. The content will be displayed after succes
                     shadow-xl hover:shadow-2xl transform transition-all duration-300
                     ${buttonHovered ? 'scale-110 rotate-1' : 'scale-100 rotate-0'}
                     ${cameraStatus === 'requesting' ? 'animate-pulse' : ''}
-                    border-0 overflow-hidden
+                    border-0 overflow-hidden active:scale-95
+                    ring-2 ring-purple-300 ring-offset-2
                     before:absolute before:inset-0 before:bg-gradient-to-r before:from-white/20 before:via-transparent before:to-white/20
                     before:translate-x-[-100%] hover:before:translate-x-[100%] before:transition-transform before:duration-700
                   `}
@@ -1401,7 +1874,7 @@ This QR code is protected with a PIN. The content will be displayed after succes
                  />
                  <label 
                    htmlFor="qr-file-input"
-                   className="group relative inline-flex items-center px-8 py-4 text-base font-bold text-purple-700 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl cursor-pointer transition-all duration-300 hover:scale-110 hover:rotate-[-1deg] hover:shadow-xl hover:border-purple-400 hover:bg-gradient-to-r hover:from-purple-100 hover:to-pink-100 overflow-hidden"
+                   className="group relative inline-flex items-center justify-center px-8 py-4 text-base font-bold text-purple-700 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300 rounded-xl cursor-pointer transition-all duration-300 hover:scale-110 hover:rotate-[-1deg] hover:shadow-xl hover:border-purple-500 hover:bg-gradient-to-r hover:from-purple-100 hover:to-pink-100 overflow-hidden active:scale-95 ring-2 ring-purple-200 ring-offset-1 w-full sm:w-auto"
                  >
                    {/* Animated background */}
                    <div className="absolute inset-0 bg-gradient-to-r from-purple-300/20 to-pink-300/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -1495,7 +1968,7 @@ This QR code is protected with a PIN. The content will be displayed after succes
                 onClick={clearResults} 
                 variant="outline" 
                 size="lg" 
-                className="mt-4 px-6 py-3 text-base font-semibold border-2 hover:bg-red-50 hover:border-red-300 text-red-600"
+                className="mt-4 px-6 py-3 text-base font-semibold border-2 border-red-400 bg-red-50 hover:bg-red-100 hover:border-red-500 text-red-700 shadow-md active:scale-95 transition-all w-full sm:w-auto"
               >
                 🗑️ Clear Results
               </Button>
@@ -1529,76 +2002,53 @@ This QR code is protected with a PIN. The content will be displayed after succes
                </Button>
              </div>
             
-            <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded-r-lg">
-              <p className="text-base font-semibold text-green-800 mb-1">
-                🎯 Camera Active - Optimized for Speed
-              </p>
-              <p className="text-sm text-green-700">
-                Point your camera at a QR code to scan it automatically. For best results:
-              </p>
-              <ul className="text-sm text-green-700 mt-2 ml-4 list-disc">
-                <li>Hold the camera steady and close to the QR code</li>
-                <li>Ensure good lighting conditions</li>
-                <li>Keep the QR code flat and unfolded</li>
-              </ul>
-            </div>
-            
-            {/* Debug button for testing */}
-            <div>
-              <Button 
-                onClick={() => {
-                  const testData = "https://example.com";
-                  setScannedData(testData);
-                  stopScanning();
-                  toast({
-                    title: "Test QR Code",
-                    description: "Test data set for debugging"
-                  });
-                }} 
-                variant="outline" 
-                size="sm"
-                className="text-sm font-medium mr-2"
-              >
-                🧪 Test Scan (Debug)
-          </Button>
+            {/* Enhanced Instructions Card */}
+            <div className="bg-gradient-to-br from-green-50 to-blue-50 border-l-4 border-green-500 p-5 rounded-r-lg shadow-lg">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="p-2 bg-green-500 rounded-lg">
+                  <Camera className="h-5 w-5 text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-bold text-green-900 mb-2">
+                    📷 Camera Scanner Active
+                  </p>
+                  <p className="text-sm text-green-800 font-medium mb-3">
+                    Follow these steps to scan a QR code:
+                  </p>
+                </div>
+              </div>
               
-              <Button 
-                onClick={() => {
-                  setStorageStats(getStorageStats());
-                  const stats = getStorageStats();
-                  toast({
-                    title: "🔒 PIN Storage Stats",
-                    description: `${stats.localCount} PIN-protected QR codes stored locally`,
-                    duration: 3000
-                  });
-                }} 
-                variant="outline" 
-                size="sm"
-                className="text-sm font-medium mr-2"
-              >
-                📊 Check PIN Storage
-              </Button>
+              <div className="space-y-3 text-sm text-green-800">
+                <div className="flex items-start gap-3 bg-white/60 p-3 rounded-lg">
+                  <span className="flex-shrink-0 w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center font-bold text-xs">1</span>
+                  <div>
+                    <p className="font-semibold mb-1">Select Camera (if multiple cameras available)</p>
+                    <p className="text-xs text-green-700">Look for a camera dropdown or icon in the scanner view. Tap it to switch between front and back cameras.</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-3 bg-white/60 p-3 rounded-lg">
+                  <span className="flex-shrink-0 w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center font-bold text-xs">2</span>
+                  <div>
+                    <p className="font-semibold mb-1">Position QR Code</p>
+                    <p className="text-xs text-green-700">Point your camera at the QR code. Keep it steady and ensure good lighting.</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-3 bg-white/60 p-3 rounded-lg">
+                  <span className="flex-shrink-0 w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center font-bold text-xs">3</span>
+                  <div>
+                    <p className="font-semibold mb-1">Auto-Scan</p>
+                    <p className="text-xs text-green-700">The QR code will be scanned automatically when detected. No need to click anything!</p>
+                  </div>
+                </div>
+              </div>
               
-              <Button 
-                onClick={async () => {
-                  console.log('🔧 Testing PIN hashing...');
-                  const { hashPin } = await import('@/utils/qrCodeService');
-                  const testPin = '1234';
-                  const hash1 = await hashPin(testPin);
-                  const hash2 = await hashPin(testPin);
-                  console.log('🔧 PIN hash test:', { testPin, hash1, hash2, match: hash1 === hash2 });
-                  toast({
-                    title: "🔧 PIN Hash Test",
-                    description: hash1 === hash2 ? "✅ Hashes match!" : "❌ Hashes don't match!",
-                    duration: 3000
-                  });
-                }} 
-                variant="outline" 
-                size="sm"
-                className="text-sm font-medium"
-              >
-                🔧 Test PIN Hash
-              </Button>
+              <div className="mt-4 pt-3 border-t border-green-200">
+                <p className="text-xs text-green-700 font-medium">
+                  💡 <strong>Tip:</strong> The scanner will automatically detect and process QR codes. Just point and wait!
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -1608,17 +2058,19 @@ This QR code is protected with a PIN. The content will be displayed after succes
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
+          <AlertDescription className="whitespace-pre-line">
             {error}
-            <div className="mt-2">
-              <strong>To fix camera issues:</strong>
-              <ul className="list-disc list-inside mt-1 text-sm">
-                <li>Look for a camera icon in your browser's address bar and click "Allow"</li>
-                <li>Or go to browser Settings → Privacy → Camera and allow this site</li>
-                <li>Refresh the page after changing permissions</li>
-                <li>Make sure no other apps are using your camera</li>
-              </ul>
-            </div>
+            {!isProcessingFile && error.toLowerCase().includes('camera') && (
+              <div className="mt-2">
+                <strong>To fix camera issues:</strong>
+                <ul className="list-disc list-inside mt-1 text-sm">
+                  <li>Look for a camera icon in your browser's address bar and click "Allow"</li>
+                  <li>Or go to browser Settings → Privacy → Camera and allow this site</li>
+                  <li>Refresh the page after changing permissions</li>
+                  <li>Make sure no other apps are using your camera</li>
+                </ul>
+              </div>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -1628,8 +2080,62 @@ This QR code is protected with a PIN. The content will be displayed after succes
         <CardContent className="p-6">
           <div 
             id="qr-scanner-container" 
-            className={`${isScanning ? 'block' : 'hidden'}`}
+            className={`${isScanning ? 'block' : 'hidden'} relative`}
           />
+          
+          {/* Enhanced Camera Selection Instructions - Only show when scanning starts */}
+          {isScanning && (
+            <div className="mt-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-400 rounded-xl p-5 shadow-lg">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md">
+                    <span className="text-white text-2xl">📱</span>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-blue-900 mb-3 flex items-center gap-2">
+                    <span>Quick Guide</span>
+                    <span className="text-sm font-normal text-blue-600 bg-blue-100 px-2 py-1 rounded-full">Tap to interact</span>
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="bg-white/80 p-3 rounded-lg border-l-4 border-purple-500">
+                      <p className="text-sm font-bold text-gray-900 mb-1 flex items-center gap-2">
+                        <span className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                        <span>Select Camera</span>
+                      </p>
+                      <p className="text-xs text-gray-700 ml-8">
+                        Look for the <strong className="text-purple-600 bg-purple-100 px-1 rounded">purple dropdown</strong> above. Tap it to choose between front/back camera.
+                      </p>
+                    </div>
+                    <div className="bg-white/80 p-3 rounded-lg border-l-4 border-green-500">
+                      <p className="text-sm font-bold text-gray-900 mb-1 flex items-center gap-2">
+                        <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                        <span>Start Scanning</span>
+                      </p>
+                      <p className="text-xs text-gray-700 ml-8">
+                        Tap the <strong className="text-green-600 bg-green-100 px-1 rounded">green "Start Scanning" button</strong> to begin. The camera will activate automatically.
+                      </p>
+                    </div>
+                    <div className="bg-white/80 p-3 rounded-lg border-l-4 border-amber-500">
+                      <p className="text-sm font-bold text-gray-900 mb-1 flex items-center gap-2">
+                        <span className="w-6 h-6 bg-amber-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                        <span>Point & Scan</span>
+                      </p>
+                      <p className="text-xs text-gray-700 ml-8">
+                        Point your camera at the QR code. It will scan <strong>automatically</strong> - no need to press anything!
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-blue-200">
+                    <p className="text-xs text-blue-800 font-medium">
+                      💡 <strong>Tip:</strong> All <span className="bg-blue-200 px-1.5 py-0.5 rounded font-bold">colored buttons</span> are clickable. Regular text is just information.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {!isScanning && !scannedData && !uploadedImage && (
             <div className="text-center py-16 text-gray-600">
               <div className="mb-6">
@@ -1642,7 +2148,7 @@ This QR code is protected with a PIN. The content will be displayed after succes
                 Ready to Scan QR Codes
               </h3>
               <p className="text-base font-medium text-gray-700 mb-2">
-                Click <strong>"📷 Start Camera Scan"</strong> to begin
+                Click <strong className="bg-purple-100 px-2 py-1 rounded">"📷 Start Camera Scan"</strong> to begin
               </p>
               <p className="text-sm text-gray-600 max-w-md mx-auto leading-relaxed">
                 Your camera will open after granting permission. Point it at any QR code for instant scanning.
@@ -1776,8 +2282,13 @@ This QR code is protected with a PIN. The content will be displayed after succes
                   </div>
                 )}
               </div>
-              <div className="flex gap-2">
-                <Button onClick={copyToClipboard} variant="outline" size="sm">
+              <div className="flex flex-wrap gap-2">
+                <Button 
+                  onClick={copyToClipboard} 
+                  variant="outline" 
+                  size="sm"
+                  className="bg-white border-2 border-purple-300 hover:bg-purple-50 hover:border-purple-400 font-semibold shadow-md active:scale-95 transition-all"
+                >
                   {copied ? (
                     <Check className="h-4 w-4 mr-2" />
                   ) : (
@@ -1787,8 +2298,14 @@ This QR code is protected with a PIN. The content will be displayed after succes
                 </Button>
                 {(scannedData.startsWith('http') || scannedData.startsWith('mailto:') || 
                   scannedData.startsWith('tel:') || scannedData.startsWith('sms:') || 
-                  scannedData.startsWith('WIFI:') || scannedData.startsWith('MECARD:')) && (
-                  <Button onClick={openScannedData} variant="outline" size="sm">
+                  scannedData.startsWith('WIFI:') || scannedData.startsWith('MECARD:') ||
+                  scannedData.startsWith('upi://') || scannedData.startsWith('UPI://') || isUPIQRCode(scannedData)) && (
+                  <Button 
+                    onClick={openScannedData} 
+                    variant="outline" 
+                    size="sm"
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 hover:from-purple-600 hover:to-pink-600 font-semibold shadow-md active:scale-95 transition-all"
+                  >
                     {scannedData.startsWith('WIFI:') ? (
                       <>
                         📶 Connect to WiFi
@@ -1809,6 +2326,10 @@ This QR code is protected with a PIN. The content will be displayed after succes
                       <>
                         💬 Send SMS
                       </>
+                    ) : (scannedData.startsWith('upi://') || scannedData.startsWith('UPI://') || isUPIQRCode(scannedData)) ? (
+                      <>
+                        💳 Open Payment App
+                      </>
                     ) : scannedData.startsWith('http') ? (
                       <>
                         🌐 Open Website
@@ -1819,10 +2340,19 @@ This QR code is protected with a PIN. The content will be displayed after succes
                   </Button>
                 )}
               </div>
+              
+              {/* Mobile-friendly button hint */}
+              <div className="mt-2 text-xs text-gray-500 text-center sm:hidden">
+                💡 <strong>Tip:</strong> Colored buttons with icons are clickable. Tap them to perform actions.
+              </div>
             </div>
             
-            <div className="bg-gray-50 p-4 rounded-lg max-h-96 overflow-y-auto">
-              <pre className="text-sm whitespace-pre-wrap break-all">
+            <div className="bg-gray-50 p-4 rounded-lg max-h-96 overflow-y-auto border-2 border-gray-200">
+              <div className="mb-2 text-xs text-gray-500 font-medium flex items-center gap-1">
+                <span>📄</span>
+                <span>Scanned Content (Read-only)</span>
+              </div>
+              <pre className="text-sm whitespace-pre-wrap break-all text-gray-800">
                 {formatScannedData(scannedData)}
               </pre>
             </div>

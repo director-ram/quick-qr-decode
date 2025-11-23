@@ -3,13 +3,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import QRGenerator from '@/components/QRGenerator';
 import QRScanner from '@/components/QRScanner';
 import QRHistory from '@/components/QRHistory';
 import AnimatedBackground from '@/components/AnimatedBackground';
 import FloatingParticles from '@/components/FloatingParticles';
 import PageHeader from '@/components/PageHeader';
-import { QrCode, ScanQrCode, History, Sparkles, LogOut, User } from 'lucide-react';
+import Footer from '@/components/Footer';
+import { QrCode, ScanQrCode, History, Sparkles, LogOut, User, X, Code, Globe, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -31,6 +33,7 @@ const Index = () => {
   const [history, setHistory] = useState<QRHistoryItem[]>([]);
   const [activeTab, setActiveTab] = useState('generate');
   const [indicatorStyle, setIndicatorStyle] = useState({});
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const tabsRef = useRef<HTMLDivElement>(null);
   const { currentUser, logout } = useAuth();
   const { toast } = useToast();
@@ -219,9 +222,26 @@ const Index = () => {
       <FloatingParticles />
 
       <div className="container mx-auto px-4 py-8 relative z-10">
+        {/* Logo in top left corner - Clickable to open sidebar */}
+        <div className="absolute top-4 left-4 z-20">
+          <button 
+            onClick={() => setIsSidebarOpen(true)}
+            className="flex items-center gap-2 group cursor-pointer"
+          >
+            <img 
+              src="/HAG.jpg" 
+              alt="HAG's QR Scanner Logo" 
+              className="h-10 w-10 rounded-lg object-cover shadow-lg border-2 border-white/30 group-hover:border-white/50 transition-all duration-300 group-hover:scale-110"
+            />
+            <span className="text-white font-bold text-lg hidden sm:block group-hover:text-purple-300 transition-colors">
+              HAG's QR Scanner
+            </span>
+          </button>
+        </div>
+
         {/* User Info and Logout */}
         <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3 text-white">
+          <div className="flex items-center gap-3 text-white ml-20 sm:ml-0">
             <div className="p-2 bg-white/20 backdrop-blur-sm rounded-full">
               <User className="h-4 w-4" />
             </div>
@@ -324,7 +344,149 @@ const Index = () => {
             </TabsContent>
           </Tabs>
         </div>
+
+        {/* Footer */}
+        <Footer />
       </div>
+
+      {/* About Sidebar */}
+      <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
+        <SheetContent 
+          side="left" 
+          className="w-[90vw] sm:w-[400px] bg-black/80 backdrop-blur-lg border-r border-white/20 shadow-2xl flex flex-col h-full p-0"
+        >
+          {/* Fixed Header */}
+          <SheetHeader className="mb-0 p-6 pb-4 border-b border-white/10 flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <img 
+                src="/HAG.jpg" 
+                alt="HAG's QR Scanner Logo" 
+                className="h-12 w-12 rounded-lg object-cover shadow-md"
+              />
+              <SheetTitle className="text-2xl font-bold text-white">
+                About HAG's QR Scanner
+              </SheetTitle>
+            </div>
+            <SheetDescription className="text-left text-gray-300 mt-2">
+              Learn more about this project and its creators
+            </SheetDescription>
+          </SheetHeader>
+
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto px-6 py-6 sidebar-scrollbar">
+            <div className="space-y-6">
+            {/* Built With Section */}
+            <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl p-5 border border-purple-400/30 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-purple-500 rounded-lg">
+                  <Code className="h-5 w-5 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-white">Built With</h3>
+              </div>
+              <div className="space-y-2 text-sm text-gray-200">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                  <span><strong>React</strong> + <strong>TypeScript</strong></span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                  <span><strong>Vite</strong> - Build Tool</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                  <span><strong>Tailwind CSS</strong> - Styling</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                  <span><strong>Firebase</strong> - Backend & Database</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                  <span><strong>shadcn/ui</strong> - UI Components</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                  <span><strong>html5-qrcode</strong> - QR Code Scanning</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Deployed On Section */}
+            <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-xl p-5 border border-blue-400/30 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-blue-500 rounded-lg">
+                  <Globe className="h-5 w-5 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-white">Deployed On</h3>
+              </div>
+              <div className="space-y-2 text-sm text-gray-200">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                  <span><strong>Netlify</strong> - Frontend Hosting</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                  <span><strong>Firebase</strong> - Backend Services</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                  <span><strong>Custom Domain</strong> - hagqrscanner.website</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Creators Section */}
+            <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl p-5 border border-green-400/30 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-green-500 rounded-lg">
+                  <Users className="h-5 w-5 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-white">Creators</h3>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg border border-green-400/30 backdrop-blur-sm">
+                  <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
+                    H
+                  </div>
+                  <div>
+                    <p className="font-semibold text-white">Hemasai</p>
+                    <p className="text-xs text-gray-300">Developer</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg border border-blue-400/30 backdrop-blur-sm">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
+                    A
+                  </div>
+                  <div>
+                    <p className="font-semibold text-white">Ahbiram</p>
+                    <p className="text-xs text-gray-300">Developer</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg border border-purple-400/30 backdrop-blur-sm">
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
+                    G
+                  </div>
+                  <div>
+                    <p className="font-semibold text-white">Gopi</p>
+                    <p className="text-xs text-gray-300">Developer</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Project Info */}
+            <div className="bg-gradient-to-br from-gray-800/40 to-slate-800/40 rounded-xl p-5 border border-gray-600/30 backdrop-blur-sm">
+              <h3 className="text-sm font-semibold text-white mb-2">Project Information</h3>
+              <p className="text-xs text-gray-300 leading-relaxed">
+                HAG's QR Scanner is a modern, feature-rich QR code generator and scanner application 
+                built with cutting-edge web technologies. It supports various QR code formats including 
+                URLs, WiFi networks, contact cards, UPI payments, and more.
+              </p>
+            </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };

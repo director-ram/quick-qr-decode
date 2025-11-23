@@ -5,9 +5,9 @@
  * This script sets up environment variables and deploys to Netlify
  */
 
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 // Firebase configuration from your project
 const firebaseConfig = {

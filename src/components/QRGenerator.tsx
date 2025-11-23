@@ -253,8 +253,8 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
       if (!qrText.trim()) {
         setQrCodeUrl('');
         setQrData('');
-        return;
-      }
+      return;
+    }
       // Dynamic import to avoid build issues
       const QRCode = await import('qrcode');
       const canvas = canvasRef.current;
@@ -564,7 +564,7 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
         return;
       }
     }
-
+    
     const link = document.createElement('a');
     link.download = `qr-code-${Date.now()}.png`;
     link.href = qrCodeUrl;
@@ -998,19 +998,19 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
                     Enter PIN Code
                   </Label>
                   <div className="relative">
-                    <Input
-                      id="pin-code"
+                  <Input
+                    id="pin-code"
                       type={showPin ? "text" : "password"}
-                      placeholder="Enter 4-8 digit PIN"
-                      value={pinCode}
-                      onChange={(e) => {
-                        setPinCode(e.target.value);
-                        // Trigger PIP mode update when PIN changes
-                        setTimeout(() => handleScroll(), 100);
-                      }}
-                      maxLength={8}
+                    placeholder="Enter 4-8 digit PIN"
+                    value={pinCode}
+                    onChange={(e) => {
+                      setPinCode(e.target.value);
+                      // Trigger PIP mode update when PIN changes
+                      setTimeout(() => handleScroll(), 100);
+                    }}
+                    maxLength={8}
                       className="bg-white border-blue-300 focus:border-blue-500 transition-all duration-300 focus:ring-2 focus:ring-blue-200 pr-10"
-                    />
+                  />
                     <button
                       type="button"
                       onClick={togglePinVisibility}

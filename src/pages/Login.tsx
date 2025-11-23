@@ -293,9 +293,11 @@ const Login: React.FC = () => {
           {/* Header */}
           <div className="text-center mb-8 slide-in-top">
             <div className="flex items-center justify-center gap-3 mb-6">
-              <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl glow-effect">
-                <QrCode className="h-8 w-8 text-white" />
-              </div>
+              <img 
+                src="/HAG.jpg" 
+                alt="HAG's QR Scanner Logo" 
+                className="h-10 w-10 rounded-xl object-cover shadow-lg border-2 border-white/20"
+              />
               <h1 className="text-4xl font-bold gradient-text">HAG's QR Scanner</h1>
               <Sparkles className="h-6 w-6 text-yellow-500 float-animation" />
             </div>

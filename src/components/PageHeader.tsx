@@ -1,13 +1,15 @@
 
 import React from "react";
-import { QrCode, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 const PageHeader: React.FC = () => (
   <div className="text-center mb-12 slide-in-top">
     <div className="flex items-center justify-center gap-3 mb-4">
-      <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl glow-effect">
-        <QrCode className="h-8 w-8 text-white" />
-      </div>
+      <img 
+        src="/HAG.jpg" 
+        alt="HAG's QR Scanner Logo" 
+        className="h-12 w-12 rounded-xl object-cover shadow-lg border-2 border-white/20"
+      />
       <h1 className="text-5xl font-bold gradient-text">HAG's QR Scanner</h1>
       <Sparkles className="h-6 w-6 text-yellow-500 float-animation" />
     </div>
