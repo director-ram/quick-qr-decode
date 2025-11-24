@@ -7,13 +7,18 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import QRGenerator from '@/components/QRGenerator';
 import QRScanner from '@/components/QRScanner';
 import QRHistory from '@/components/QRHistory';
+import BulkQRGenerator from '@/components/BulkQRGenerator';
+import QRAnalytics from '@/components/QRAnalytics';
 import AnimatedBackground from '@/components/AnimatedBackground';
 import FloatingParticles from '@/components/FloatingParticles';
 import PageHeader from '@/components/PageHeader';
 import Footer from '@/components/Footer';
-import { QrCode, ScanQrCode, History, Sparkles, LogOut, User, X, Code, Globe, Users } from 'lucide-react';
+import { QrCode, ScanQrCode, History, Sparkles, LogOut, X, Code, Globe, Users, BarChart3, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+
+const DEFAULT_AVATAR = '/default-avatar.svg';
 
 // >>>>> Import Firestore <<<<<
 import { db } from '../firebase';
@@ -193,6 +198,20 @@ const Index = () => {
     return 'User';
   };
 
+  const getUserAvatar = () => {
+    if (!currentUser) return DEFAULT_AVATAR;
+
+    const googleProfile = currentUser.providerData?.find(
+      (provider) => provider.providerId === 'google.com' && provider.photoURL
+    );
+
+    return googleProfile?.photoURL || currentUser.photoURL || DEFAULT_AVATAR;
+  };
+
+  const handleAvatarError = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    event.currentTarget.src = DEFAULT_AVATAR;
+  };
+
   useEffect(() => {
     const updateIndicator = () => {
       if (tabsRef.current) {
@@ -215,13 +234,27 @@ const Index = () => {
     return () => clearTimeout(timeoutId);
   }, [activeTab]);
 
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    'ctrl+g': () => setActiveTab('generate'),
+    'ctrl+s': () => setActiveTab('scan'),
+    'ctrl+h': () => setActiveTab('history'),
+    'ctrl+a': () => setActiveTab('analytics'),
+    'ctrl+/': () => {
+      toast({
+        title: "Keyboard Shortcuts",
+        description: "Ctrl+G: Generate | Ctrl+S: Scan | Ctrl+H: History | Ctrl+A: Analytics"
+      });
+    }
+  });
+
   return (
     <div className="min-h-screen relative overflow-hidden">
       {/* Animated background */}
       <AnimatedBackground />
       <FloatingParticles />
 
-      <div className="container mx-auto px-4 py-8 relative z-10">
+      <div className="container mx-auto px-4 pt-20 sm:pt-8 pb-8 relative z-10">
         {/* Logo in top left corner - Clickable to open sidebar */}
         <div className="absolute top-4 left-4 z-20">
           <button 
@@ -240,21 +273,27 @@ const Index = () => {
         </div>
 
         {/* User Info and Logout */}
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3 text-white ml-20 sm:ml-0">
-            <div className="p-2 bg-white/20 backdrop-blur-sm rounded-full">
-              <User className="h-4 w-4" />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 mt-16">
+          <div className="flex items-center gap-3 text-white">
+            <div className="h-12 w-12 rounded-full overflow-hidden border-2 border-white/30 shadow-lg bg-white/10 backdrop-blur-sm flex-shrink-0">
+              <img 
+                src={getUserAvatar()} 
+                alt={`${getUserDisplayName()}'s avatar`} 
+                className="h-full w-full object-cover"
+                onError={handleAvatarError}
+              />
             </div>
-            <span className="text-sm font-medium">
-              Welcome, {getUserDisplayName()}
-            </span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-xs uppercase tracking-wide text-white/70">Welcome</span>
+              <span className="text-lg font-semibold">{getUserDisplayName()}</span>
+            </div>
           </div>
           
           <Button
             onClick={handleLogout}
             variant="outline"
             size="sm"
-            className="bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20 transition-all duration-300"
+            className="bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20 transition-all duration-300 w-full sm:w-auto"
           >
             <LogOut className="h-4 w-4 mr-2" />
             Logout
@@ -269,7 +308,7 @@ const Index = () => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="relative mb-8">
               <div ref={tabsRef} className="relative">
-                <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-2 hover-lift relative overflow-hidden">
+                <TabsList className="grid w-full grid-cols-4 bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-2 hover-lift relative overflow-hidden">
                   {/* Floating indicator bar - positioned behind text */}
                   <div 
                     className="absolute top-2 bottom-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-lg transition-all duration-300 ease-in-out z-10"
@@ -281,38 +320,73 @@ const Index = () => {
                     className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-20 data-[state=active]:text-white data-[state=inactive]:text-gray-700 hover:text-gray-900 bg-transparent border-0 shadow-none"
                   >
                     <QrCode size={18} />
-                    <span className="font-medium">Generate</span>
+                    <span className="font-medium hidden sm:inline">Generate</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="scan" 
                     className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-20 data-[state=active]:text-white data-[state=inactive]:text-gray-700 hover:text-gray-900 bg-transparent border-0 shadow-none"
                   >
                     <ScanQrCode size={18} />
-                    <span className="font-medium">Scan</span>
+                    <span className="font-medium hidden sm:inline">Scan</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="history" 
                     className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-20 data-[state=active]:text-white data-[state=inactive]:text-gray-700 hover:text-gray-900 bg-transparent border-0 shadow-none"
                   >
                     <History size={18} />
-                    <span className="font-medium">History</span>
+                    <span className="font-medium hidden sm:inline">History</span>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="analytics" 
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-20 data-[state=active]:text-white data-[state=inactive]:text-gray-700 hover:text-gray-900 bg-transparent border-0 shadow-none"
+                  >
+                    <BarChart3 size={18} />
+                    <span className="font-medium hidden sm:inline">Analytics</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
             </div>
 
-            <TabsContent value="generate" className="slide-in-left">
+            <TabsContent value="analytics" className="slide-in-left">
               <Card className="modern-card hover-lift">
                 <CardHeader className="text-center">
-                  <CardTitle className="text-2xl gradient-text">Generate QR Code</CardTitle>
+                  <CardTitle className="text-2xl gradient-text">QR Code Analytics</CardTitle>
                   <CardDescription className="text-lg">
-                    Create beautiful QR codes from text, URLs, contact info, and more
+                    Track scans, engagement, and performance of your QR codes
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-8">
-                  <QRGenerator onGenerate={addToHistory} history={history} />
+                  <QRAnalytics />
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="generate" className="slide-in-left">
+              <div className="space-y-6">
+                <Card className="modern-card hover-lift">
+                  <CardHeader className="text-center">
+                    <CardTitle className="text-2xl gradient-text">Generate QR Code</CardTitle>
+                    <CardDescription className="text-lg">
+                      Create beautiful QR codes from text, URLs, contact info, and more
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-8">
+                    <QRGenerator onGenerate={addToHistory} history={history} />
+                  </CardContent>
+                </Card>
+                
+                <Card className="modern-card hover-lift">
+                  <CardHeader className="text-center">
+                    <CardTitle className="text-2xl gradient-text">Bulk QR Generator</CardTitle>
+                    <CardDescription className="text-lg">
+                      Generate multiple QR codes at once from a list
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-8">
+                    <BulkQRGenerator onGenerate={addToHistory} />
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
 
             <TabsContent value="scan" className="slide-in-right">
@@ -444,22 +518,30 @@ const Index = () => {
                 <h3 className="text-lg font-bold text-white">Creators</h3>
               </div>
               <div className="space-y-3">
-                <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg border border-green-400/30 backdrop-blur-sm">
+                <a
+                  href="https://portfolio-sigma-black-77.vercel.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-3 bg-white/10 rounded-lg border border-green-400/30 backdrop-blur-sm hover:bg-white/15 transition-all duration-300 cursor-pointer group"
+                >
                   <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
                     H
                   </div>
-                  <div>
-                    <p className="font-semibold text-white">Hemasai</p>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-white group-hover:text-green-300 transition-colors">Hemasai</p>
+                      <ExternalLink className="h-3 w-3 text-gray-400 group-hover:text-green-300 transition-colors" />
+                    </div>
                     <p className="text-xs text-gray-300">Developer</p>
                   </div>
-                </div>
+                </a>
                 <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg border border-blue-400/30 backdrop-blur-sm">
                   <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
                     A
                   </div>
                   <div>
                     <p className="font-semibold text-white">Ahbiram</p>
-                    <p className="text-xs text-gray-300">Developer</p>
+                    <p className="text-xs text-gray-300">Developer & TL</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg border border-purple-400/30 backdrop-blur-sm">
@@ -468,7 +550,7 @@ const Index = () => {
                   </div>
                   <div>
                     <p className="font-semibold text-white">Gopi</p>
-                    <p className="text-xs text-gray-300">Developer</p>
+                    <p className="text-xs text-gray-300">Tester</p>
                   </div>
                 </div>
               </div>

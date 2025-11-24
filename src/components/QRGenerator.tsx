@@ -7,13 +7,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Download, Copy, Check, Upload, Palette, Image as ImageIcon, Shield, Lock, Minimize2, Eye, EyeOff } from 'lucide-react';
+import { Download, Copy, Check, Upload, Palette, Image as ImageIcon, Shield, Lock, Minimize2, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { encryptData, isValidPin } from '@/utils/encryption';
 import { storePinProtectedQRCode } from '@/utils/qrCodeService';
 import { useAuth } from '@/contexts/AuthContext';
 import type { QRHistoryItem } from '@/pages/Index';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { QR_TEMPLATES, getTemplatesByCategory, type QRTemplate } from '@/utils/qrTemplates';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // Remove Firestore imports
 // import { collection, query, where, getDocs } from "firebase/firestore";
 // import { db } from "@/firebase";
@@ -77,6 +79,10 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
   const [showSaveToHistoryPopup, setShowSaveToHistoryPopup] = useState(false);
   const [pendingPinQrId, setPendingPinQrId] = useState<string | null>(null);
   const [pendingPinQrData, setPendingPinQrData] = useState<string | null>(null);
+
+  // Template state
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'business' | 'personal' | 'social' | 'utility'>('all');
 
   // PIP Mode and Animation state
   const [isPipMode, setIsPipMode] = useState(false);
@@ -231,12 +237,33 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
 
   // Helper to check if a PIN-protected QR ID is already in history
   const isPinQrInHistory = (qrId: string) => {
-    return history.some(item =>
-      item.type === 'generated' &&
-      item.data &&
-      typeof item.data === 'string' &&
-      item.data.includes(qrId)
-    );
+    // For PIN-protected QRs, the history stores the original data (generateBaseData())
+    // not the PIN_PROTECTED:qrId string. So we check if there's a history item
+    // with the same original data that was just saved.
+    const currentBaseData = generateBaseData();
+    
+    // Check if there's a recent history item with matching base data
+    // We look for items saved in the last few seconds to match the current QR
+    const now = Date.now();
+    const recentThreshold = 10000; // 10 seconds
+    
+    return history.some(item => {
+      if (item.type !== 'generated' || !item.data || typeof item.data !== 'string') {
+        return false;
+      }
+      
+      // Check if the data matches the current base data
+      const dataMatches = item.data === currentBaseData;
+      
+      // Check if it's a recent save (within last 10 seconds)
+      const itemTime = item.timestamp instanceof Date ? item.timestamp.getTime() : new Date(item.timestamp).getTime();
+      const isRecent = (now - itemTime) < recentThreshold;
+      
+      // Also check if PIN protection is currently enabled (indicates this is a PIN QR)
+      const isPinQR = isPinProtected && pinCode.trim().length > 0;
+      
+      return dataMatches && isRecent && isPinQR;
+    });
   };
 
   // Patch generateQRCodeInternal to trigger popup for PIN-protected QRs
@@ -437,6 +464,49 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
     setShowPin(!showPin);
   };
 
+  // Apply template to form
+  const applyTemplate = (template: QRTemplate) => {
+    setDataType(template.dataType);
+    
+    // Apply preset data
+    if (template.preset.text) {
+      setTextData(template.preset.text);
+    }
+    if (template.preset.url) {
+      setUrlData(template.preset.url);
+    }
+    if (template.preset.wifi) {
+      setWifiData(template.preset.wifi);
+    }
+    if (template.preset.contact) {
+      setContactData(template.preset.contact);
+    }
+    if (template.preset.email) {
+      setEmailData(template.preset.email);
+    }
+    if (template.preset.sms) {
+      setSmsData(template.preset.sms);
+    }
+    
+    // Apply styling if available
+    if (template.styling) {
+      if (template.styling.qrColor) setQrColor(template.styling.qrColor);
+      if (template.styling.bgColor) setBgColor(template.styling.bgColor);
+      if (template.styling.errorCorrectionLevel) setErrorCorrectionLevel(template.styling.errorCorrectionLevel);
+      if (template.styling.size) setQrSize(template.styling.size);
+    }
+    
+    setShowTemplates(false);
+    toast({
+      title: "Template Applied",
+      description: `${template.name} template has been applied. Customize as needed!`
+    });
+  };
+
+  const filteredTemplates = selectedCategory === 'all' 
+    ? QR_TEMPLATES 
+    : getTemplatesByCategory(selectedCategory);
+
   // PIP QR Component with enhanced animations
   const PipQRPreview = () => {
     if (!isPipMode || !qrCodeUrl) return null;
@@ -559,9 +629,24 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
     // If PIN protected and not saved to history, show popup
     if (isPinProtected && pinCode && qrData.startsWith('PIN_PROTECTED:')) {
       const qrId = qrData.split(':')[1];
-      if (qrId && !isPinQrInHistory(qrId)) {
-        setShowDownloadPinPopup(true);
-        return;
+      if (qrId) {
+        // Check if this PIN-protected QR is in history
+        // History stores the original data (generateBaseData()), not the PIN_PROTECTED:qrId
+        const currentBaseData = generateBaseData();
+        const isInHistory = history.some(item => 
+          item.type === 'generated' &&
+          item.data &&
+          typeof item.data === 'string' &&
+          item.data === currentBaseData &&
+          // Check if it was saved recently (within last 30 seconds) to avoid false positives
+          item.timestamp &&
+          (Date.now() - (item.timestamp instanceof Date ? item.timestamp.getTime() : new Date(item.timestamp).getTime())) < 30000
+        );
+        
+        if (!isInHistory) {
+          setShowDownloadPinPopup(true);
+          return;
+        }
       }
     }
     
@@ -792,24 +877,34 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
     <div className="space-y-6" ref={containerRef}>
         <PipQRPreview />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Input Form */}
+        {/* Left Column: Input Form */}
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="data-type">Data Type</Label>
-            <Select value={dataType} onValueChange={(value: QRDataType) => setDataType(value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="text">Plain Text</SelectItem>
-                <SelectItem value="url">Website URL</SelectItem>
-                <SelectItem value="wifi">WiFi Network</SelectItem>
-                <SelectItem value="contact">Contact Card</SelectItem>
-                <SelectItem value="email">Email</SelectItem>
-                <SelectItem value="sms">SMS</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-2 mb-2">
+            <Label htmlFor="data-type" className="flex-1">Data Type</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowTemplates(true)}
+              className="flex items-center gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              Templates
+            </Button>
           </div>
+          <Select value={dataType} onValueChange={(value: QRDataType) => setDataType(value)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="text">Plain Text</SelectItem>
+              <SelectItem value="url">Website URL</SelectItem>
+              <SelectItem value="wifi">WiFi Network</SelectItem>
+              <SelectItem value="contact">Contact Card</SelectItem>
+              <SelectItem value="email">Email</SelectItem>
+              <SelectItem value="sms">SMS</SelectItem>
+            </SelectContent>
+          </Select>
 
           {renderDataTypeForm()}
 
@@ -962,98 +1057,14 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
           </Button>
         </div>
 
-        {/* PIN Protection Section */}
-        {qrCodeUrl && (
+        {/* Right Column: QR Code Display + PIN Protection */}
+        <div className="space-y-4">
+          {/* QR Code Display - Always visible on right side */}
           <div 
-            className="space-y-4" 
-            ref={(el) => setPinSectionRef(el)}
+            className="flex flex-col items-center space-y-4"
+            ref={(el) => setQrDisplayRef(el)}
           >
-            <div className="flex items-center gap-2 mb-4">
-              <Shield className="h-5 w-5 text-blue-600" />
-              <h3 className="text-lg font-semibold gradient-text">PIN Protection</h3>
-            </div>
-            
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Lock className="h-5 w-5 text-blue-600" />
-                  <div>
-                    <Label className="text-sm font-medium text-blue-900">
-                      Enable PIN Protection
-                    </Label>
-                    <p className="text-xs text-blue-700">
-                      Require a PIN to view QR code content when scanned
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={isPinProtected}
-                  onCheckedChange={setIsPinProtected}
-                />
-              </div>
-              
-              {isPinProtected && (
-                <div className="space-y-2">
-                  <Label htmlFor="pin-code" className="text-sm font-medium text-blue-900">
-                    Enter PIN Code
-                  </Label>
-                  <div className="relative">
-                  <Input
-                    id="pin-code"
-                      type={showPin ? "text" : "password"}
-                    placeholder="Enter 4-8 digit PIN"
-                    value={pinCode}
-                    onChange={(e) => {
-                      setPinCode(e.target.value);
-                      // Trigger PIP mode update when PIN changes
-                      setTimeout(() => handleScroll(), 100);
-                    }}
-                    maxLength={8}
-                      className="bg-white border-blue-300 focus:border-blue-500 transition-all duration-300 focus:ring-2 focus:ring-blue-200 pr-10"
-                  />
-                    <button
-                      type="button"
-                      onClick={togglePinVisibility}
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-blue-700"
-                      tabIndex={-1}
-                    >
-                      {showPin ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
-                  </div>
-                  <p className="text-xs text-blue-600">
-                    💡 Users will need to enter this PIN to view the QR code content
-                  </p>
-                </div>
-              )}
-              
-              {isPinProtected && pinCode && (
-                <div className="bg-green-100 border border-green-300 rounded p-3">
-                  <div className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-600" />
-                    <span className="text-sm font-medium text-green-800">
-                      PIN Protection Active
-                    </span>
-                  </div>
-                  <p className="text-xs text-green-700 mt-1">
-                    This QR code is now protected with PIN: {pinCode.replace(/./g, '•')}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* QR Code Display */}
-        <div 
-          className="flex flex-col items-center space-y-4"
-          ref={(el) => setQrDisplayRef(el)}
-        >
           <Card className={`p-6 relative transition-all duration-500 ${isPipMode ? 'opacity-50 scale-95' : 'opacity-100 scale-100'}`}>
-            {qrCodeUrl && (
-              <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-medium shadow-lg animate-pulse">
-                ⚡ Live Preview
-              </div>
-            )}
             {isPinProtected && pinCode && (
               <div className="absolute -top-2 -left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-medium shadow-lg animate-pulse">
                 🔒 PIN Protected
@@ -1130,6 +1141,98 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
               </div>
             </div>
           )}
+          </div>
+
+          {/* PIN Protection Section - Below QR Code on right side */}
+          {qrCodeUrl && (
+            <div 
+              className="space-y-4" 
+              ref={(el) => setPinSectionRef(el)}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <Shield className="h-5 w-5 text-blue-600" />
+                <h3 className="text-lg font-semibold gradient-text">PIN Protection</h3>
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Lock className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <Label className="text-sm font-medium text-blue-900">
+                        Enable PIN Protection
+                      </Label>
+                      <p className="text-xs text-blue-700">
+                        Require a PIN to view QR code content when scanned
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={isPinProtected}
+                    onCheckedChange={setIsPinProtected}
+                  />
+                </div>
+                
+                {isPinProtected && (
+                  <div className="space-y-2">
+                    <Label htmlFor="pin-code" className="text-sm font-medium text-blue-900">
+                      Enter PIN Code
+                    </Label>
+                    <div className="relative">
+                    <Input
+                      id="pin-code"
+                        type={showPin ? "text" : "password"}
+                      placeholder="Enter 4-8 digit PIN"
+                      value={pinCode}
+                      onChange={(e) => {
+                        setPinCode(e.target.value);
+                        // Trigger PIP mode update when PIN changes
+                        setTimeout(() => handleScroll(), 100);
+                      }}
+                      maxLength={8}
+                        className="bg-white border-blue-300 focus:border-blue-500 transition-all duration-300 focus:ring-2 focus:ring-blue-200 pr-10"
+                    />
+                      <button
+                        type="button"
+                        onClick={togglePinVisibility}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-blue-700"
+                        tabIndex={-1}
+                      >
+                        {showPin ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-blue-600">
+                      💡 Users will need to enter this PIN to view the QR code content
+                    </p>
+                  </div>
+                )}
+                
+                {isPinProtected && pinCode && (
+                  <div className="bg-green-100 border border-green-300 rounded p-3">
+                    <div className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-600" />
+                      <span className="text-sm font-medium text-green-800">
+                        PIN Protection Active
+                      </span>
+                    </div>
+                    <p className="text-xs text-green-700 mt-1">
+                      This QR code is now protected with PIN: {pinCode.replace(/./g, '•')}
+                    </p>
+                  </div>
+                )}
+
+                {/* Live Preview Badge - Under PIN Protection */}
+                {qrCodeUrl && (
+                  <div className="mt-4 flex items-center justify-center">
+                    <div className="bg-green-500 text-white text-xs px-3 py-1.5 rounded-full font-medium shadow-lg animate-pulse flex items-center gap-1.5">
+                      <span>⚡</span>
+                      <span>Live Preview</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <Dialog open={showSaveToHistoryPopup} onOpenChange={setShowSaveToHistoryPopup}>
@@ -1169,6 +1272,64 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
           </div>
           <DialogFooter>
             <Button onClick={() => setShowDownloadPinPopup(false)} className="w-full">Dismiss</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Templates Dialog */}
+      <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+              QR Code Templates
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Category Filter */}
+            <Tabs value={selectedCategory} onValueChange={(v) => setSelectedCategory(v as any)}>
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="business">Business</TabsTrigger>
+                <TabsTrigger value="personal">Personal</TabsTrigger>
+                <TabsTrigger value="social">Social</TabsTrigger>
+                <TabsTrigger value="utility">Utility</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {/* Templates Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+              {filteredTemplates.map((template) => (
+                <Card
+                  key={template.id}
+                  className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-105 border-2 hover:border-purple-500"
+                  onClick={() => applyTemplate(template)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="text-3xl">{template.icon}</div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-lg mb-1">{template.name}</h3>
+                        <p className="text-sm text-gray-600 mb-2">{template.description}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
+                            {template.dataType}
+                          </span>
+                          <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-full">
+                            {template.category}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTemplates(false)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

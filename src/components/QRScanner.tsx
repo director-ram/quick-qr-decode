@@ -4,10 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Copy, Check, Camera, CameraOff, AlertCircle, Shield } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { Html5QrcodeScanner, Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 import PinInputDialog from './PinInputDialog';
 import { decryptData } from '@/utils/encryption';
 import { verifyPinAndGetData, isPinProtectedQRCode, getStorageStats, verifyPinAndGetDataWithRecovery, batchMigrateOldQRCodes } from '@/utils/qrCodeService';
+import { trackQRScan, getUserIP } from '@/utils/qrAnalytics';
+import { useAuth } from '@/contexts/AuthContext';
 import type { QRHistoryItem } from '@/pages/Index';
 
 interface QRScannerProps {
@@ -29,6 +31,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const { toast } = useToast();
+  const { currentUser } = useAuth();
 
   // PIN Protection state
   const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
@@ -74,6 +77,15 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
             setIsPinDialogOpen(false);
             setPinProtectedData('');
             setIsPinLoading(false);
+
+            // Track analytics for PIN-protected QR scan
+            getUserIP().then(ip => {
+              trackQRScan(qrId, currentUser?.uid, {
+                location: { ip },
+                userAgent: navigator.userAgent,
+                referrer: document.referrer
+              });
+            });
 
             // Add to history
             onScan({
@@ -241,6 +253,20 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
           // Set the scanned data immediately for non-PIN-protected codes
           setScannedData(decodedText);
           console.log('✅ setScannedData called with:', decodedText);
+          
+          // Track analytics if it's a PIN-protected QR ID
+          if (decodedText.startsWith('PIN_PROTECTED:')) {
+            const qrId = decodedText.split(':')[1];
+            if (qrId) {
+              getUserIP().then(ip => {
+                trackQRScan(qrId, currentUser?.uid, {
+                  location: { ip },
+                  userAgent: navigator.userAgent,
+                  referrer: document.referrer
+                });
+              });
+            }
+          }
           
           // Add to history
           onScan({
@@ -1377,10 +1403,7 @@ ${data}
       try {
         const QrScanner = (await import('qr-scanner')).default;
         const scanResult = await QrScanner.scanImage(img, {
-          returnDetailedScanResult: false,
           alsoTryWithoutScanRegion: true,
-          maxScansPerFrame: 5,
-          scanDelay: 0,
         });
         result = extractResult(scanResult);
         if (result) {
@@ -1404,10 +1427,7 @@ ${data}
           });
           
           const scanResult = await QrScanner.scanImage(processedImg, {
-            returnDetailedScanResult: false,
             alsoTryWithoutScanRegion: true,
-            maxScansPerFrame: 10,
-            scanDelay: 0,
           });
           result = extractResult(scanResult);
           if (result) {
@@ -1430,9 +1450,7 @@ ${data}
           document.body.appendChild(tempContainer);
           
           // Try with file directly
-          const scanResult = await html5QrCode.scanFile(file, {
-            formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-          });
+          const scanResult = await (html5QrCode as any).scanFile(file, false);
           
           result = extractResult(scanResult);
           

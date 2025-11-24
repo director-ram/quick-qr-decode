@@ -51,6 +51,7 @@ declare module 'html5-qrcode' {
 
     stop(): Promise<void>;
     clear(): void;
+    scanFile(imageFile: File, showImage?: boolean): Promise<string>;
 
     static getCameras(): Promise<any[]>;
   }
