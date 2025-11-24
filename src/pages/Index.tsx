@@ -9,11 +9,13 @@ import QRScanner from '@/components/QRScanner';
 import QRHistory from '@/components/QRHistory';
 import BulkQRGenerator from '@/components/BulkQRGenerator';
 import QRAnalytics from '@/components/QRAnalytics';
+import WorkflowAutomations from '@/components/WorkflowAutomations';
 import AnimatedBackground from '@/components/AnimatedBackground';
 import FloatingParticles from '@/components/FloatingParticles';
 import PageHeader from '@/components/PageHeader';
 import Footer from '@/components/Footer';
-import { QrCode, ScanQrCode, History, Sparkles, LogOut, X, Code, Globe, Users, BarChart3, ExternalLink } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
+import { QrCode, ScanQrCode, History, Sparkles, LogOut, X, Code, Globe, Users, BarChart3, ExternalLink, Zap } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
@@ -239,11 +241,12 @@ const Index = () => {
     'ctrl+g': () => setActiveTab('generate'),
     'ctrl+s': () => setActiveTab('scan'),
     'ctrl+h': () => setActiveTab('history'),
+    'ctrl+m': () => setActiveTab('automations'),
     'ctrl+a': () => setActiveTab('analytics'),
     'ctrl+/': () => {
       toast({
         title: "Keyboard Shortcuts",
-        description: "Ctrl+G: Generate | Ctrl+S: Scan | Ctrl+H: History | Ctrl+A: Analytics"
+        description: "Ctrl+G: Generate | Ctrl+S: Scan | Ctrl+H: History | Ctrl+M: Automations | Ctrl+A: Analytics"
       });
     }
   });
@@ -288,16 +291,18 @@ const Index = () => {
               <span className="text-lg font-semibold">{getUserDisplayName()}</span>
             </div>
           </div>
-          
-          <Button
-            onClick={handleLogout}
-            variant="outline"
-            size="sm"
-            className="bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20 transition-all duration-300 w-full sm:w-auto"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <ThemeToggle />
+            <Button
+              onClick={handleLogout}
+              variant="outline"
+              size="sm"
+              className="bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20 transition-all duration-300 flex-1 sm:flex-none"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
 
         {/* Header */}
@@ -308,7 +313,7 @@ const Index = () => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="relative mb-8">
               <div ref={tabsRef} className="relative">
-                <TabsList className="grid w-full grid-cols-4 bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-2 hover-lift relative overflow-hidden">
+                <TabsList className="grid w-full grid-cols-5 bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl rounded-2xl p-2 hover-lift relative overflow-hidden">
                   {/* Floating indicator bar - positioned behind text */}
                   <div 
                     className="absolute top-2 bottom-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-lg transition-all duration-300 ease-in-out z-10"
@@ -335,6 +340,13 @@ const Index = () => {
                   >
                     <History size={18} />
                     <span className="font-medium hidden sm:inline">History</span>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="automations" 
+                    className="flex items-center gap-2 rounded-xl transition-all duration-300 relative z-20 data-[state=active]:text-white data-[state=inactive]:text-gray-700 hover:text-gray-900 bg-transparent border-0 shadow-none"
+                  >
+                    <Zap size={18} />
+                    <span className="font-medium hidden sm:inline">Automations</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="analytics" 
@@ -415,6 +427,9 @@ const Index = () => {
                   <QRHistory history={history} onClearHistory={clearHistory} />
                 </CardContent>
               </Card>
+            </TabsContent>
+            <TabsContent value="automations" className="slide-in-right">
+              <WorkflowAutomations />
             </TabsContent>
           </Tabs>
         </div>

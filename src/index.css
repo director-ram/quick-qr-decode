@@ -89,6 +89,10 @@
     min-height: 100vh;
     overflow-x: hidden;
   }
+
+  .dark body {
+    background: linear-gradient(135deg, #0f172a 0%, #1d1b4b 100%);
+  }
 }
 
 /* Custom animations and effects */

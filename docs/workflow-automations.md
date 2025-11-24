@@ -104,3 +104,13 @@
 - Decide notification channel provider (EmailJS, Firebase Extensions, or custom).
 - Estimate backend cost impact for cron + extra reads/writes.
 
+## Appendix: Required Firestore Index
+The list view issues a `where(userId == currentUser)` plus `orderBy(createdAt desc)` query. Create this composite index once:
+
+1. Firebase Console → Firestore Database → Indexes → **Create index**.
+2. Collection ID: `qr_workflows`.
+3. Fields: `userId` (Ascending), `createdAt` (Descending).
+4. Save and wait for the index to finish building.
+
+Until the index exists, the app will fall back to an unordered query, but creating it restores descending sorting and reduces latency.
+

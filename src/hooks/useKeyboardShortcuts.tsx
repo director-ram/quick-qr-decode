@@ -17,7 +17,11 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcuts) {
       if (isCtrl) parts.push('ctrl');
       if (isShift) parts.push('shift');
       if (isAlt) parts.push('alt');
-      parts.push(event.key.toLowerCase());
+      const key = event.key?.toLowerCase?.();
+      if (!key) {
+        return;
+      }
+      parts.push(key);
 
       const shortcutKey = parts.join('+');
 

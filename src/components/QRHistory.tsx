@@ -82,12 +82,12 @@ const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
 
   if (history.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-          <Calendar className="h-12 w-12 text-gray-400" />
+      <div className="text-center py-12 text-gray-900 dark:text-gray-100">
+        <div className="mx-auto w-24 h-24 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+          <Calendar className="h-12 w-12 text-gray-400 dark:text-gray-500" />
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No History Yet</h3>
-        <p className="text-gray-500">
+        <h3 className="text-lg font-medium mb-2">No History Yet</h3>
+        <p className="text-gray-500 dark:text-gray-400">
           Generate or scan QR codes to see your history here
         </p>
       </div>
@@ -95,14 +95,14 @@ const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-gray-900 dark:text-gray-100">
       {/* Filter and Clear Controls */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-gray-500" />
+        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+          <Filter className="h-4 w-4" />
           <Select value={filter} onValueChange={(value: 'all' | 'generated' | 'scanned') => setFilter(value)}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
+            <SelectTrigger className="w-40 bg-white dark:bg-slate-900 border-gray-200 dark:border-white/10">
+              <SelectValue placeholder="All Items" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Items</SelectItem>
@@ -114,14 +114,14 @@ const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
         
         <AlertDialog>
           <AlertDialogTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm"
-              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-        >
-          <Trash2 className="h-4 w-4 mr-2" />
-          Clear History
-        </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-500/10 border-red-200 dark:border-red-400/40"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Clear History
+            </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -150,15 +150,18 @@ const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
       {/* History Items */}
       <div className="space-y-3">
         {filteredHistory.map((item) => (
-          <Card key={item.id} className="hover:shadow-md transition-shadow">
+          <Card 
+            key={item.id} 
+            className="hover:shadow-md transition-shadow bg-white dark:bg-slate-900/80 border border-gray-100 dark:border-white/10"
+          >
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2">
                     {item.type === 'generated' ? (
-                      <QrCode className="h-4 w-4 text-blue-600" />
+                      <QrCode className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     ) : (
-                      <ScanQrCode className="h-4 w-4 text-green-600" />
+                      <ScanQrCode className="h-4 w-4 text-green-600 dark:text-green-400" />
                     )}
                     <Badge 
                       variant={item.type === 'generated' ? 'default' : 'secondary'}
@@ -166,16 +169,16 @@ const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
                     >
                       {item.type === 'generated' ? 'Generated' : 'Scanned'}
                     </Badge>
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs dark:border-white/20 dark:text-white/80">
                       {getDataTypeLabel(item)}
                     </Badge>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
                       {formatDate(item.timestamp)}
                     </span>
                   </div>
                   
                   <div 
-                    className="bg-gray-50 p-3 rounded text-sm font-mono break-all cursor-pointer hover:bg-gray-100 transition-colors"
+                    className="bg-gray-50 dark:bg-slate-800/80 p-3 rounded text-sm font-mono break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-gray-800 dark:text-gray-100"
                     onClick={() => handleViewDetails(item)}
                   >
                     {formatData(item.data)}
@@ -187,24 +190,24 @@ const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
                     onClick={() => handleViewDetails(item)}
                     variant="ghost"
                     size="sm"
-                    className="flex-shrink-0"
+                    className="flex-shrink-0 text-gray-600 dark:text-gray-200"
                     title="View full details"
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
-                <Button
-                  onClick={() => copyToClipboard(item.data, item.id)}
-                  variant="ghost"
-                  size="sm"
-                  className="flex-shrink-0"
+                  <Button
+                    onClick={() => copyToClipboard(item.data, item.id)}
+                    variant="ghost"
+                    size="sm"
+                    className="flex-shrink-0 text-gray-600 dark:text-gray-200"
                     title="Copy to clipboard"
-                >
-                  {copiedId === item.id ? (
-                    <Check className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
+                  >
+                    {copiedId === item.id ? (
+                      <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -213,7 +216,7 @@ const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
       </div>
 
       {filteredHistory.length === 0 && filter !== 'all' && (
-        <Alert>
+        <Alert className="bg-white dark:bg-slate-900/80 border-gray-100 dark:border-white/10 text-gray-900 dark:text-gray-100">
           <AlertDescription>
             No {filter} items found in your history.
           </AlertDescription>
