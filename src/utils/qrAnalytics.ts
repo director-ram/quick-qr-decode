@@ -111,6 +111,13 @@ export async function trackQRScan(
     }
 
     console.log('✅ QR scan tracked:', qrId, 'Creator:', qrCreatorUserId, 'Scanner:', scannerUserId);
+
+    // Check and trigger scan threshold automations in real-time
+    // Import dynamically to avoid circular dependencies
+    const { checkAndTriggerScanThresholdAutomations } = await import('./workflowAutomations');
+    checkAndTriggerScanThresholdAutomations(qrId).catch(err => {
+      console.warn('⚠️ Failed to check automations:', err);
+    });
   } catch (error) {
     console.error('❌ Error tracking QR scan:', error);
     // Don't throw - analytics failures shouldn't break the app
@@ -131,24 +138,56 @@ export async function getQRAnalytics(qrId: string): Promise<QRAnalytics | null> 
 
     const data = analyticsSnap.data();
     
-    // Get recent scan events
-    const eventsQuery = query(
-      collection(db, SCAN_EVENTS_COLLECTION),
-      where('qrId', '==', qrId),
-      orderBy('timestamp', 'desc'),
-      limit(50)
-    );
-    const eventsSnap = await getDocs(eventsQuery);
-    const scanEvents: QRScanEvent[] = eventsSnap.docs.map(doc => {
-      const eventData = doc.data();
-      return {
-        qrId: eventData.qrId,
-        timestamp: eventData.timestamp?.toDate() || new Date(),
-        location: eventData.location,
-        userAgent: eventData.userAgent,
-        referrer: eventData.referrer
-      };
-    });
+    // Get recent scan events with fallback for missing index
+    let scanEvents: QRScanEvent[] = [];
+    try {
+      const eventsQuery = query(
+        collection(db, SCAN_EVENTS_COLLECTION),
+        where('qrId', '==', qrId),
+        orderBy('timestamp', 'desc'),
+        limit(50)
+      );
+      const eventsSnap = await getDocs(eventsQuery);
+      scanEvents = eventsSnap.docs.map(doc => {
+        const eventData = doc.data();
+        return {
+          qrId: eventData.qrId,
+          timestamp: eventData.timestamp?.toDate() || new Date(),
+          location: eventData.location,
+          userAgent: eventData.userAgent,
+          referrer: eventData.referrer
+        };
+      });
+    } catch (indexError: any) {
+      // If index doesn't exist, fall back to querying without orderBy
+      if (indexError?.code === 'failed-precondition' || indexError?.message?.includes('index')) {
+        console.warn('⚠️ Index not found for qr_scan_events, using fallback query without orderBy');
+        
+        const eventsQuery = query(
+          collection(db, SCAN_EVENTS_COLLECTION),
+          where('qrId', '==', qrId),
+          limit(100) // Get more to sort in memory
+        );
+        const eventsSnap = await getDocs(eventsQuery);
+        scanEvents = eventsSnap.docs.map(doc => {
+          const eventData = doc.data();
+          return {
+            qrId: eventData.qrId,
+            timestamp: eventData.timestamp?.toDate() || new Date(),
+            location: eventData.location,
+            userAgent: eventData.userAgent,
+            referrer: eventData.referrer
+          };
+        });
+        
+        // Sort by timestamp in memory (descending)
+        scanEvents.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+        // Limit to 50 most recent
+        scanEvents = scanEvents.slice(0, 50);
+      } else {
+        throw indexError;
+      }
+    }
 
     return {
       qrId: data.qrId,

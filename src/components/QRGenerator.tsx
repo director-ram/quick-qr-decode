@@ -13,7 +13,7 @@ import { encryptData, isValidPin } from '@/utils/encryption';
 import { storePinProtectedQRCode } from '@/utils/qrCodeService';
 import { useAuth } from '@/contexts/AuthContext';
 import type { QRHistoryItem } from '@/pages/Index';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { QR_TEMPLATES, getTemplatesByCategory, type QRTemplate } from '@/utils/qrTemplates';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // Remove Firestore imports
@@ -23,11 +23,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 interface QRGeneratorProps {
   onGenerate: (item: Omit<QRHistoryItem, 'id' | 'timestamp' | 'userId'>) => void;
   history: QRHistoryItem[];
+  onAutomationPrompt?: (qrId: string, qrName: string, qrUrl: string) => void;
+  onClearCache?: (clearFn: () => void) => void;
 }
 
 type QRDataType = 'text' | 'url' | 'wifi' | 'contact' | 'email' | 'sms';
 
-const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
+const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history, onAutomationPrompt, onClearCache }) => {
   const [dataType, setDataType] = useState<QRDataType>('text');
   const [qrData, setQrData] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
@@ -79,10 +81,77 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
   const [showSaveToHistoryPopup, setShowSaveToHistoryPopup] = useState(false);
   const [pendingPinQrId, setPendingPinQrId] = useState<string | null>(null);
   const [pendingPinQrData, setPendingPinQrData] = useState<string | null>(null);
+  
+  // Automation prompt state
+  const [showAutomationPrompt, setShowAutomationPrompt] = useState(false);
+  const [createdPinQrId, setCreatedPinQrId] = useState<string | null>(null);
+  const [createdPinQrName, setCreatedPinQrName] = useState<string>('');
 
   // Template state
   const [showTemplates, setShowTemplates] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'business' | 'personal' | 'social' | 'utility'>('all');
+
+  // Function to clear form cache
+  const clearFormCache = () => {
+    localStorage.removeItem('qrGeneratorFormData');
+    setDataType('text');
+    setTextData('');
+    setUrlData('');
+    setWifiData({ ssid: '', password: '', security: 'WPA' });
+    setContactData({ name: '', phone: '', email: '', organization: '' });
+    setEmailData({ to: '', subject: '', body: '' });
+    setSmsData({ number: '', message: '' });
+    setIsPinProtected(false);
+    setPinCode('');
+    setQrCodeUrl('');
+    setQrData('');
+  };
+
+  // Load form data from localStorage on mount
+  useEffect(() => {
+    const savedData = localStorage.getItem('qrGeneratorFormData');
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed.dataType) setDataType(parsed.dataType);
+        if (parsed.textData) setTextData(parsed.textData);
+        if (parsed.urlData) setUrlData(parsed.urlData);
+        if (parsed.wifiData) setWifiData(parsed.wifiData);
+        if (parsed.contactData) setContactData(parsed.contactData);
+        if (parsed.emailData) setEmailData(parsed.emailData);
+        if (parsed.smsData) setSmsData(parsed.smsData);
+        if (parsed.isPinProtected !== undefined) setIsPinProtected(parsed.isPinProtected);
+        if (parsed.qrColor) setQrColor(parsed.qrColor);
+        if (parsed.bgColor) setBgColor(parsed.bgColor);
+      } catch (error) {
+        console.error('Failed to load form data from localStorage:', error);
+      }
+    }
+  }, []);
+
+  // Save form data to localStorage whenever it changes (but not PIN code for security)
+  useEffect(() => {
+    const formDataToSave = {
+      dataType,
+      textData,
+      urlData,
+      wifiData,
+      contactData,
+      emailData,
+      smsData,
+      isPinProtected,
+      qrColor,
+      bgColor,
+    };
+    localStorage.setItem('qrGeneratorFormData', JSON.stringify(formDataToSave));
+  }, [dataType, textData, urlData, wifiData, contactData, emailData, smsData, isPinProtected, qrColor, bgColor]);
+
+  // Expose clearFormCache function to parent component
+  useEffect(() => {
+    if (onClearCache) {
+      onClearCache(clearFormCache);
+    }
+  }, [onClearCache]);
 
   // PIP Mode and Animation state
   const [isPipMode, setIsPipMode] = useState(false);
@@ -328,8 +397,11 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
         // Only add to history when manually generated (not real-time)
         if (showToast) {
           let historyData = qrText;
+          let pinQrId: string | null = null;
+          
           if (isPinProtected && pinCode.trim() && qrText.startsWith('PIN_PROTECTED:')) {
             historyData = generateBaseData();
+            pinQrId = qrText.split(':')[1];
           }
           
           console.log('📝 Adding to history:', { historyData, qrText, isPinProtected });
@@ -339,25 +411,44 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
             data: historyData,
           dataType
         });
-        // --- PIN-protected QR popup logic ---
-        // Remove this block so the popup is not shown after saving to history
-        // if (isPinProtected && pinCode.trim() && qrText.startsWith('PIN_PROTECTED:')) {
-        //   const qrId = qrText.split(':')[1];
-        //   if (qrId && !isPinQrInHistory(qrId)) {
-        //     setPendingPinQrId(qrId);
-        //     setPendingPinQrData(historyData);
-        //     setShowSaveToHistoryPopup(true);
-        //   }
-        // }
-        // --- end popup logic ---
+        
+        // Show automation prompt for PIN-protected QR codes
+        if (isPinProtected && pinCode.trim() && pinQrId) {
+          // Generate a name for the QR code based on data type
+          let qrName = 'My QR Code';
+          const baseData = generateBaseData();
+          if (baseData.startsWith('http')) {
+            try {
+              const url = new URL(baseData);
+              qrName = `QR: ${url.hostname}`;
+            } catch {
+              qrName = 'QR: Website';
+            }
+          } else if (dataType === 'wifi') {
+            qrName = `QR: WiFi - ${wifiData.ssid || 'Network'}`;
+          } else if (dataType === 'contact') {
+            qrName = `QR: Contact - ${contactData.name || 'Contact'}`;
+          } else if (dataType === 'email') {
+            qrName = `QR: Email - ${emailData.to || 'Email'}`;
+          } else if (dataType === 'sms') {
+            qrName = `QR: SMS - ${smsData.number || 'Number'}`;
+          } else {
+            qrName = `QR: ${dataType.charAt(0).toUpperCase() + dataType.slice(1)}`;
+          }
+          
+          setCreatedPinQrId(pinQrId);
+          setCreatedPinQrName(qrName);
+          setShowAutomationPrompt(true);
+        } else {
           const description = isPinProtected && pinCode.trim() 
             ? "PIN-protected QR code generated and stored in Firebase!"
             : "QR code generated successfully!";
 
-        toast({
-          title: "Success",
+          toast({
+            title: "Success",
             description
-        });
+          });
+        }
         }
       }
     } catch (error) {
@@ -1272,6 +1363,65 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ onGenerate, history }) => {
           </div>
           <DialogFooter>
             <Button onClick={() => setShowDownloadPinPopup(false)} className="w-full">Dismiss</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Automation Prompt Dialog */}
+      <Dialog open={showAutomationPrompt} onOpenChange={setShowAutomationPrompt}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+              Create Automation?
+            </DialogTitle>
+            <DialogDescription>
+              Would you like to create an automation for this PIN-protected QR code? 
+              You can set up notifications, pause conditions, or destination updates.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg">
+              <p className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-1">
+                QR Code: {createdPinQrName}
+              </p>
+              <p className="text-xs text-purple-700 dark:text-purple-300">
+                ID: {createdPinQrId}
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAutomationPrompt(false);
+                setCreatedPinQrId(null);
+                setCreatedPinQrName('');
+                // Don't clear cache when user declines automation
+                // Cache will persist for next time
+                toast({
+                  title: "Success",
+                  description: "PIN-protected QR code generated and saved to history!"
+                });
+              }}
+              className="w-full sm:w-auto"
+            >
+              No, Continue
+            </Button>
+            <Button
+              onClick={() => {
+                if (createdPinQrId && onAutomationPrompt && qrCodeUrl) {
+                  onAutomationPrompt(createdPinQrId, createdPinQrName, qrCodeUrl);
+                }
+                setShowAutomationPrompt(false);
+                setCreatedPinQrId(null);
+                setCreatedPinQrName('');
+              }}
+              className="w-full sm:w-auto"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              Yes, Create Automation
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

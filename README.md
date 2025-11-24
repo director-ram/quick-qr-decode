@@ -36,6 +36,11 @@ A modern, interactive QR code scanner and generator web application built with R
 - Track both generated and scanned QR codes
 - Export and manage history
 
+⚙️ **Workflow Automations**
+- Create schedule- or scan-based workflows per QR
+- Actions include notifying yourself, pausing a QR, or overriding destinations
+- Netlify Scheduled Function (`run-automations`) evaluates triggers every 15 minutes
+
 ## Project info
 
 **URL**: https://lovable.dev/projects/7e500f7f-dc64-4065-91d2-073e56e4ab7c
@@ -99,6 +104,16 @@ This project is built with:
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/7e500f7f-dc64-4065-91d2-073e56e4ab7c) and click on Share -> Publish.
+
+## Automation executor setup
+
+1. Create a Firebase service account with `Firestore Service Agent` permissions and copy the JSON.
+2. In Netlify (or your CI), add two environment variables:
+   - `FIREBASE_SERVICE_ACCOUNT` – paste the JSON directly or base64-encode it.
+   - `AUTOMATION_NOTIFY_WEBHOOK` *(optional)* – Slack/Teams URL to receive notify actions.
+3. Deploy the site. Netlify will detect `netlify/functions/run-automations.ts` and schedule it (`*/15 * * * *`).
+4. Confirm that the function logs appear in Netlify → Functions → Scheduled functions.
+5. Create workflows in the Automations tab; results are written to `qr_workflow_runs` and `qr_workflow_notifications`.
 
 ## Can I connect a custom domain to my Lovable project?
 

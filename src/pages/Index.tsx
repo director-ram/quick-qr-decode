@@ -38,12 +38,15 @@ export interface QRHistoryItem {
 
 const Index = () => {
   const [history, setHistory] = useState<QRHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('generate');
   const [indicatorStyle, setIndicatorStyle] = useState({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const tabsRef = useRef<HTMLDivElement>(null);
   const { currentUser, logout } = useAuth();
   const { toast } = useToast();
+  const [automationPrefill, setAutomationPrefill] = useState<{ qrId: string; qrName: string; qrUrl?: string } | null>(null);
+  const clearGeneratorCacheRef = useRef<(() => void) | null>(null);
 
   // Test Firestore connection
   useEffect(() => {
@@ -159,9 +162,11 @@ const Index = () => {
         });
         console.log("Setting history records:", records);
         setHistory(records);
+        setHistoryLoading(false);
       },
       (error) => {
         console.error("Error loading history:", error);
+        setHistoryLoading(false);
         toast({
           title: "History Load Failed",
           description: "Could not load QR history. Check Firestore settings.",
@@ -175,6 +180,10 @@ const Index = () => {
 
   const handleLogout = async () => {
     try {
+      // Clear generator cache on logout
+      if (clearGeneratorCacheRef.current) {
+        clearGeneratorCacheRef.current();
+      }
       await logout();
       toast({
         title: "Logged Out",
@@ -382,9 +391,23 @@ const Index = () => {
                       Create beautiful QR codes from text, URLs, contact info, and more
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="p-8">
-                    <QRGenerator onGenerate={addToHistory} history={history} />
-                  </CardContent>
+                <CardContent className="p-8">
+                  <QRGenerator 
+                    onGenerate={addToHistory} 
+                    history={history}
+                    onAutomationPrompt={(qrId, qrName, qrUrl) => {
+                      setAutomationPrefill({ qrId, qrName, qrUrl });
+                      setActiveTab('automations');
+                      toast({
+                        title: "Redirecting to Automations",
+                        description: "Let's set up your automation!"
+                      });
+                    }}
+                    onClearCache={(clearFn) => {
+                      clearGeneratorCacheRef.current = clearFn;
+                    }}
+                  />
+                </CardContent>
                 </Card>
                 
                 <Card className="modern-card hover-lift">
@@ -424,12 +447,20 @@ const Index = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-8">
-                  <QRHistory history={history} onClearHistory={clearHistory} />
+                  <QRHistory history={history} onClearHistory={clearHistory} loading={historyLoading} />
                 </CardContent>
               </Card>
             </TabsContent>
             <TabsContent value="automations" className="slide-in-right">
-              <WorkflowAutomations />
+              <WorkflowAutomations 
+                prefillData={automationPrefill} 
+                onPrefillUsed={() => setAutomationPrefill(null)}
+                onClearGeneratorCache={() => {
+                  if (clearGeneratorCacheRef.current) {
+                    clearGeneratorCacheRef.current();
+                  }
+                }}
+              />
             </TabsContent>
           </Tabs>
         </div>

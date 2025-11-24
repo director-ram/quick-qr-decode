@@ -58,14 +58,23 @@
    }
    ```
 2. **Scheduler**
-   - Cloud Function (cron) running every 5 minutes.
+   - Netlify Scheduled Function (`netlify/functions/run-automations.ts`) running every 15 minutes.
    - Fetch workflows whose trigger window matches current slice.
    - For scan-based triggers, read from aggregated analytics collection (`qr_analytics`) to avoid per-event processing.
-   - Run actions transactionally; log results to `qr_workflow_runs`.
+   - Run actions transactionally; log results to `qr_workflow_runs` + `qr_workflow_notifications`.
 
 3. **Runtime Hooks**
    - QR serving endpoint checks `isActive` and `destinationOverride` fields.
    - Analytics updater increments counters used by automation triggers.
+
+4. **Automation Executor Overview**
+   - Requires `FIREBASE_SERVICE_ACCOUNT` (raw JSON or base64) and optional `AUTOMATION_NOTIFY_WEBHOOK`.
+   - Trigger evaluation handled for `schedule`, `scan_threshold`, `inactivity`, and `expiry`.
+   - Currently supported actions:
+     - `notify`: POST payload to webhook when present, otherwise enqueue to `qr_workflow_notifications`.
+     - `pause_qr`: sets `automationStatus = 'paused'` on the QR document.
+     - `update_destination`: writes `automationOverrides.destination` on the QR document.
+   - Each successful run updates `lastRunAt` + `lastTriggerValue` and creates an audit entry in `qr_workflow_runs`.
 
 ## 5. UI Additions
 - **Automations Tab** (new tab next to Analytics) with:
@@ -92,7 +101,7 @@
 ## 7. Rollout Plan
 1. **Backend foundation**: collections, scheduler skeleton, helper functions.
 2. **UI scaffolding**: tab, list, builder without backend wiring (mock data).
-3. **Integration**: connect builder to Firestore, wire scheduler to analytics.
+3. **Integration**: connect builder to Firestore, wire Netlify scheduler to analytics + QR mutations.
 4. **Testing**:
    - Unit: trigger evaluation helpers.
    - Integration: emulator tests for scheduler + Firestore writes.

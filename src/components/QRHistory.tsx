@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Trash2, Copy, Check, QrCode, ScanQrCode, Calendar, Filter, Eye } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import QRDataDialog from './QRDataDialog';
 import type { QRHistoryItem } from '@/pages/Index';
@@ -14,9 +15,10 @@ import type { QRHistoryItem } from '@/pages/Index';
 interface QRHistoryProps {
   history: QRHistoryItem[];
   onClearHistory: () => void;
+  loading?: boolean;
 }
 
-const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
+const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory, loading = false }) => {
   const [filter, setFilter] = useState<'all' | 'generated' | 'scanned'>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<QRHistoryItem | null>(null);
@@ -79,6 +81,34 @@ const QRHistory: React.FC<QRHistoryProps> = ({ history, onClearHistory }) => {
       minute: '2-digit'
     }).format(date);
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="bg-white dark:bg-slate-900/80 border border-gray-200 dark:border-white/10">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-5 w-5 rounded" />
+                    <Skeleton className="h-5 w-20" />
+                    <Skeleton className="h-5 w-16" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <Skeleton className="h-16 w-full" />
+                </div>
+                <div className="flex gap-2">
+                  <Skeleton className="h-9 w-9" />
+                  <Skeleton className="h-9 w-9" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   if (history.length === 0) {
     return (

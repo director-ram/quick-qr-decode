@@ -114,6 +114,15 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
           setPinError('Incorrect PIN. Please try again.');
         } else if (errorMessage.includes('not found')) {
           setPinError('QR code not found or expired.');
+        } else if (errorMessage.includes('paused') || errorMessage.includes('automation')) {
+          // Enhanced message for paused QR codes
+          setPinError(errorMessage);
+          toast({
+            title: "⏸️ QR Code Paused",
+            description: errorMessage,
+            variant: "destructive",
+            duration: 5000
+          });
         } else {
           setPinError('Failed to verify PIN. Please try again.');
         }
@@ -254,19 +263,8 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
           setScannedData(decodedText);
           console.log('✅ setScannedData called with:', decodedText);
           
-          // Track analytics if it's a PIN-protected QR ID
-          if (decodedText.startsWith('PIN_PROTECTED:')) {
-            const qrId = decodedText.split(':')[1];
-            if (qrId) {
-              getUserIP().then(ip => {
-                trackQRScan(qrId, currentUser?.uid, {
-                  location: { ip },
-                  userAgent: navigator.userAgent,
-                  referrer: document.referrer
-                });
-              });
-            }
-          }
+          // Note: PIN-protected QR analytics are tracked AFTER successful PIN verification
+          // in handlePinSubmit, not here. This ensures we only track successful scans.
           
           // Add to history
           onScan({
@@ -1369,7 +1367,7 @@ ${data}
         title: "📁 Processing Image...",
         description: `Scanning ${file.name} for QR codes...`
       });
-
+      
       // Create image element
       const img = new Image();
       img.src = imageUrl;
@@ -2029,17 +2027,17 @@ Please try:
                 <div className="flex-1">
                   <p className="text-base font-bold text-green-900 mb-2">
                     📷 Camera Scanner Active
-                  </p>
+              </p>
                   <p className="text-sm text-green-800 font-medium mb-3">
                     Follow these steps to scan a QR code:
-                  </p>
+              </p>
                 </div>
-              </div>
-              
+            </div>
+            
               <div className="space-y-3 text-sm text-green-800">
                 <div className="flex items-start gap-3 bg-white/60 p-3 rounded-lg">
                   <span className="flex-shrink-0 w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center font-bold text-xs">1</span>
-                  <div>
+            <div>
                     <p className="font-semibold mb-1">Select Camera (if multiple cameras available)</p>
                     <p className="text-xs text-green-700">Look for a camera dropdown or icon in the scanner view. Tap it to switch between front and back cameras.</p>
                   </div>
@@ -2079,15 +2077,15 @@ Please try:
           <AlertDescription className="whitespace-pre-line">
             {error}
             {!isProcessingFile && error.toLowerCase().includes('camera') && (
-              <div className="mt-2">
-                <strong>To fix camera issues:</strong>
-                <ul className="list-disc list-inside mt-1 text-sm">
-                  <li>Look for a camera icon in your browser's address bar and click "Allow"</li>
-                  <li>Or go to browser Settings → Privacy → Camera and allow this site</li>
-                  <li>Refresh the page after changing permissions</li>
-                  <li>Make sure no other apps are using your camera</li>
-                </ul>
-              </div>
+            <div className="mt-2">
+              <strong>To fix camera issues:</strong>
+              <ul className="list-disc list-inside mt-1 text-sm">
+                <li>Look for a camera icon in your browser's address bar and click "Allow"</li>
+                <li>Or go to browser Settings → Privacy → Camera and allow this site</li>
+                <li>Refresh the page after changing permissions</li>
+                <li>Make sure no other apps are using your camera</li>
+              </ul>
+            </div>
             )}
           </AlertDescription>
         </Alert>

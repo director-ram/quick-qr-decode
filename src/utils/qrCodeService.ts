@@ -10,6 +10,15 @@ export interface PinProtectedQRData {
   createdAt: any;
   userId?: string;
   expiresAt?: any; // Optional expiration (null means never expires)
+  automationStatus?: 'active' | 'paused';
+  automationPausedAt?: any;
+  automationPausedBy?: string;
+  automationPausedReason?: string;
+  automationOverrides?: {
+    destination?: string;
+    updatedAt?: any;
+    workflowName?: string;
+  } | null;
 }
 
 // Collection name for PIN-protected QR codes
@@ -151,7 +160,9 @@ export async function storePinProtectedQRCode(
       pinHash,
       createdAt: new Date(),
       userId,
-      expiresAt: null // Never expires
+      expiresAt: null, // Never expires
+      automationStatus: 'active',
+      automationOverrides: null
     };
     
     console.log('📦 QR data object created');
@@ -172,7 +183,9 @@ export async function storePinProtectedQRCode(
       await setDoc(docRef, {
         ...qrData,
         createdAt: serverTimestamp(),
-        expiresAt: null // Explicitly set to never expire
+        expiresAt: null, // Explicitly set to never expire
+        automationStatus: 'active',
+        automationOverrides: null
       });
       
       firebaseSuccess = true;
@@ -272,6 +285,30 @@ export async function verifyPinAndGetData(
       console.error('❌ QR code has expired');
       throw new Error('QR code has expired');
     }
+
+    // Check time-based automations in real-time before checking pause status
+    // This ensures scheduled/expiry/inactivity automations trigger immediately
+    try {
+      const { checkAndTriggerTimeBasedAutomations } = await import('./workflowAutomations');
+      await checkAndTriggerTimeBasedAutomations(qrId);
+      
+      // Re-fetch QR data to get updated automation status
+      const updatedDocRef = doc(db, QR_CODES_COLLECTION, qrId);
+      const updatedDocSnap = await getDoc(updatedDocRef);
+      if (updatedDocSnap.exists()) {
+        const updatedData = updatedDocSnap.data() as PinProtectedQRData;
+        qrData = { ...qrData, ...updatedData };
+      }
+    } catch (automationError) {
+      console.warn('⚠️ Error checking time-based automations:', automationError);
+      // Continue with verification even if automation check fails
+    }
+
+    if (qrData.automationStatus === 'paused') {
+      const reason = qrData.automationPausedReason || 'This QR has been paused by an automation.';
+      console.error('❌ QR code paused via automation:', reason);
+      throw new Error(reason);
+    }
     
     // Verify PIN
     const enteredPinHash = await hashPin(enteredPin);
@@ -291,7 +328,13 @@ export async function verifyPinAndGetData(
       const decryptedData = decryptData(qrData.encryptedData, enteredPin);
       console.log('✅ PIN verification successful, data decrypted');
       console.log('📝 Decrypted data length:', decryptedData.length);
-      
+
+      const overrideDestination = qrData.automationOverrides?.destination;
+      if (overrideDestination && overrideDestination.trim().length > 0) {
+        console.log('🔁 Automation override applied. Returning destination override instead of base data.');
+        return overrideDestination;
+      }
+
       return decryptedData;
     } catch (decryptionError) {
       console.error('❌ Decryption failed:', decryptionError);
@@ -364,7 +407,9 @@ export async function migrateOldPinProtectedQRCode(
       pinHash,
       createdAt: new Date(),
       userId,
-      expiresAt: null // Set to never expire
+      expiresAt: null, // Set to never expire
+      automationStatus: 'active',
+      automationOverrides: null
     };
     
     // Store in both Firebase and local storage
@@ -373,7 +418,9 @@ export async function migrateOldPinProtectedQRCode(
       await setDoc(docRef, {
         ...qrData,
         createdAt: serverTimestamp(),
-        expiresAt: null
+        expiresAt: null,
+        automationStatus: 'active',
+        automationOverrides: null
       });
       console.log('✅ Old QR code migrated to Firebase:', qrId);
     } catch (firebaseError) {
