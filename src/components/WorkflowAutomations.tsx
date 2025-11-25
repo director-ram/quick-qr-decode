@@ -13,6 +13,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import {
   WorkflowAutomation,
   createWorkflowAutomation,
@@ -21,8 +23,282 @@ import {
   updateWorkflowStatus,
 } from '@/utils/workflowAutomations';
 import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from '@/utils/workflowTemplates';
-import { Loader2, PlayCircle, PauseCircle, Clock, Trash2, Zap, AlertCircle, CheckCircle2, Sparkles, Info, HelpCircle } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import {
+  Loader2,
+  PlayCircle,
+  PauseCircle,
+  Clock,
+  Trash2,
+  Zap,
+  AlertCircle,
+  CheckCircle2,
+  Sparkles,
+  Info,
+  HelpCircle,
+  Calendar as CalendarIcon,
+} from 'lucide-react';
+import { format, formatDistanceToNow, startOfDay } from 'date-fns';
+
+const formatDateTimeLocal = (date: Date) => {
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  const localISOTime = new Date(date.getTime() - tzOffset).toISOString();
+  return localISOTime.slice(0, 16);
+};
+
+const getDefaultRunDate = () => {
+  const date = new Date();
+  date.setHours(date.getHours() + 1, 0, 0, 0);
+  return formatDateTimeLocal(date);
+};
+
+const toIsoString = (value: string) => {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed.toISOString();
+};
+
+const isoToLocalInputValue = (iso?: string | null) => {
+  if (!iso) return '';
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return formatDateTimeLocal(parsed);
+};
+
+const HOURS_12 = Array.from({ length: 12 }, (_, index) => (index + 1).toString().padStart(2, '0'));
+const MINUTES = Array.from({ length: 12 }, (_, index) => (index * 5).toString().padStart(2, '0'));
+const PERIODS = ['AM', 'PM'] as const;
+const YEARS_RANGE = (() => {
+  const currentYear = new Date().getFullYear();
+  const years: number[] = [];
+  for (let year = currentYear - 5; year <= currentYear + 10; year++) {
+    years.push(year);
+  }
+  return years;
+})();
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+const parseLocalDateTime = (value?: string | null) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+};
+
+const mergeDatePart = (value: string, nextDate: Date) => {
+  const base = parseLocalDateTime(value) ?? new Date(getDefaultRunDate());
+  base.setFullYear(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate());
+  return formatDateTimeLocal(base);
+};
+
+const mergeYearMonth = (value: string, year: number, monthIndex: number) => {
+  const base = parseLocalDateTime(value) ?? new Date(getDefaultRunDate());
+  base.setFullYear(year, monthIndex, base.getDate());
+  return formatDateTimeLocal(base);
+};
+
+const mergeTimePart = (value: string, hour: number, minute: number) => {
+  const base = parseLocalDateTime(value) ?? new Date(getDefaultRunDate());
+  base.setHours(hour, minute, 0, 0);
+  return formatDateTimeLocal(base);
+};
+
+const getHour12Value = (value?: string) => {
+  const parsed = parseLocalDateTime(value);
+  if (!parsed) return '09';
+  const hours = parsed.getHours();
+  const hour12 = hours % 12 || 12;
+  return hour12.toString().padStart(2, '0');
+};
+
+const getMinuteValue = (value?: string) => {
+  const parsed = parseLocalDateTime(value);
+  if (!parsed) return '00';
+  const minutes = parsed.getMinutes().toString().padStart(2, '0');
+  return MINUTES.includes(minutes) ? minutes : '00';
+};
+
+const getPeriodValue = (value?: string) => {
+  const parsed = parseLocalDateTime(value);
+  return parsed && parsed.getHours() >= 12 ? 'PM' : 'AM';
+};
+
+const convertTo24Hour = (hour12: string, period: string) => {
+  let hour = Number(hour12) % 12;
+  if (period === 'PM') {
+    hour += 12;
+  }
+  return hour;
+};
+
+const formatScheduleLabel = (value?: string) => {
+  const parsed = parseLocalDateTime(value);
+  return parsed ? format(parsed, 'PP • p') : 'Pick date & time';
+};
+
+interface SchedulePickerProps {
+  value?: string;
+  onChange: (value: string) => void;
+  minDate?: Date;
+}
+
+const SchedulePicker: React.FC<SchedulePickerProps> = ({ value, onChange, minDate = new Date() }) => {
+  const selectedDate = parseLocalDateTime(value);
+  const [viewYear, setViewYear] = useState(() => selectedDate?.getFullYear() ?? new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => selectedDate?.getMonth() ?? new Date().getMonth());
+  const handleDateSelect = (date?: Date) => {
+    if (!date) return;
+    onChange(mergeDatePart(value || getDefaultRunDate(), date));
+  };
+
+  const handleHourChange = (hour: string) => {
+    const period = getPeriodValue(value);
+    const hour24 = convertTo24Hour(hour, period);
+    onChange(mergeTimePart(value || getDefaultRunDate(), hour24, Number(getMinuteValue(value))));
+  };
+
+  const handleMinuteChange = (minute: string) => {
+    const period = getPeriodValue(value);
+    const hour24 = convertTo24Hour(getHour12Value(value), period);
+    onChange(mergeTimePart(value || getDefaultRunDate(), hour24, Number(minute)));
+  };
+
+  const handlePeriodChange = (period: string) => {
+    const hour24 = convertTo24Hour(getHour12Value(value), period);
+    onChange(mergeTimePart(value || getDefaultRunDate(), hour24, Number(getMinuteValue(value))));
+  };
+
+  const minSelectableDate = startOfDay(minDate);
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className={`w-full justify-start text-left font-normal ${!selectedDate ? 'text-muted-foreground' : ''}`}
+        >
+          <CalendarIcon className="mr-2 h-4 w-4" />
+          <span>{formatScheduleLabel(value)}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <div className="flex flex-col gap-2 p-3 pb-0">
+          <div className="grid grid-cols-2 gap-2">
+            <Select
+              value={viewMonth.toString()}
+              onValueChange={(value) => {
+                const nextMonth = Number(value);
+                setViewMonth(nextMonth);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTHS.map((month, index) => (
+                  <SelectItem key={month} value={index.toString()}>
+                    {month}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={viewYear.toString()}
+              onValueChange={(value) => {
+                const nextYear = Number(value);
+                setViewYear(nextYear);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Year" />
+              </SelectTrigger>
+              <SelectContent className="max-h-56">
+                {YEARS_RANGE.map((year) => (
+                  <SelectItem key={year} value={year.toString()}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <Calendar
+          mode="single"
+          month={new Date(viewYear, viewMonth, 1)}
+          selected={selectedDate ?? undefined}
+          onMonthChange={(nextMonth) => {
+            setViewMonth(nextMonth.getMonth());
+            setViewYear(nextMonth.getFullYear());
+          }}
+          onSelect={handleDateSelect}
+          disabled={(date) => date < minSelectableDate}
+          initialFocus
+        />
+        <div className="border-t px-3 py-3 space-y-2">
+          <Label className="text-xs uppercase text-muted-foreground">Time</Label>
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <Select value={getHour12Value(value)} onValueChange={handleHourChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Hour" />
+                </SelectTrigger>
+                <SelectContent className="max-h-56">
+                  {HOURS_12.map((hour) => (
+                    <SelectItem key={hour} value={hour}>
+                      {hour}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <span className="text-muted-foreground">:</span>
+            <div className="flex-1">
+              <Select value={getMinuteValue(value)} onValueChange={handleMinuteChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Minute" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MINUTES.map((minute) => (
+                    <SelectItem key={minute} value={minute}>
+                      {minute}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1">
+              <Select value={getPeriodValue(value)} onValueChange={handlePeriodChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="AM/PM" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PERIODS.map((period) => (
+                    <SelectItem key={period} value={period}>
+                      {period}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const triggerLabels: Record<string, string> = {
   schedule: 'Scheduled',
@@ -57,7 +333,7 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
   const [prefillActionType, setPrefillActionType] = useState<'notify' | 'pause_qr'>('notify');
   const [prefillTriggerType, setPrefillTriggerType] = useState<'schedule' | 'scan_threshold'>('schedule');
   const [prefillThreshold, setPrefillThreshold] = useState(100);
-  const [prefillFrequency, setPrefillFrequency] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [prefillRunDate, setPrefillRunDate] = useState<string>(getDefaultRunDate());
   const [prefillQrUrl, setPrefillQrUrl] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
@@ -65,7 +341,7 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
     qrId: '',
     qrLabel: '',
     triggerType: 'schedule',
-    frequency: 'daily',
+    runDate: '',
     threshold: 100,
     actionType: 'notify',
     actionPayload: '',
@@ -101,6 +377,7 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
   useEffect(() => {
     if (prefillData) {
       setShowPrefillDialog(true);
+      setPrefillRunDate(getDefaultRunDate());
       // Pre-fill form with QR data
       setFormData(prev => ({
         ...prev,
@@ -115,13 +392,19 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
     }
   }, [prefillData]);
 
+  useEffect(() => {
+    if (prefillTriggerType === 'schedule' && !prefillRunDate) {
+      setPrefillRunDate(getDefaultRunDate());
+    }
+  }, [prefillTriggerType, prefillRunDate]);
+
   const resetForm = () => {
     setFormData({
       name: '',
       qrId: '',
       qrLabel: '',
       triggerType: 'schedule',
-      frequency: 'daily',
+      runDate: '',
       threshold: 100,
       actionType: 'notify',
       actionPayload: '',
@@ -138,7 +421,10 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
       qrId: '',
       qrLabel: template.preset.qrLabel || '',
       triggerType: template.preset.triggerType,
-      frequency: (template.preset.triggerConfig.frequency as 'daily' | 'weekly' | 'monthly') || 'daily',
+      runDate:
+        template.preset.triggerType === 'schedule'
+          ? isoToLocalInputValue(template.preset.triggerConfig.runAtDate) || getDefaultRunDate()
+          : '',
       threshold: template.preset.triggerConfig.threshold || 100,
       actionType: template.preset.actions[0]?.type || 'notify',
       actionPayload: template.preset.actions[0]?.payload?.message || '',
@@ -147,6 +433,14 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
 
   const handlePrefillCreate = async () => {
     if (!currentUser || !prefillData) return;
+    if (prefillTriggerType === 'schedule' && !prefillRunDate) {
+      toast({
+        title: 'Missing date',
+        description: 'Please select a schedule date before continuing.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     try {
       setCreating(true);
@@ -157,11 +451,10 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
         qrId: prefillData.qrId,
         qrLabel: prefillData.qrName,
         triggerType: prefillTriggerType as WorkflowAutomation['triggerType'],
-            triggerConfig:
+        triggerConfig:
           prefillTriggerType === 'schedule'
             ? {
-                frequency: prefillFrequency,
-                runAtHour: 9,
+                runAtDate: toIsoString(prefillRunDate) || new Date().toISOString(),
               }
             : {
                 threshold: prefillThreshold,
@@ -204,6 +497,7 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
       if (onPrefillUsed) onPrefillUsed();
       resetForm();
       setPrefillQrUrl(null);
+      setPrefillRunDate(getDefaultRunDate());
       loadWorkflows();
       
       // Clear generator cache after successful automation creation and download
@@ -233,11 +527,21 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
       });
       return;
     }
+    if (formData.triggerType === 'schedule' && !formData.runDate) {
+      toast({
+        title: 'Missing date',
+        description: 'Please select a date for the scheduled automation.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     try {
       setCreating(true);
       
       // Use template preset if selected, otherwise use form data
+      const scheduleRunAt = formData.triggerType === 'schedule' ? toIsoString(formData.runDate) : undefined;
+
       const workflowData = useTemplate && selectedTemplate
         ? {
             userId: currentUser.uid,
@@ -245,7 +549,13 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
             qrId: formData.qrId.trim() || undefined,
             qrLabel: formData.qrLabel.trim() || selectedTemplate.preset.qrLabel || undefined,
             triggerType: selectedTemplate.preset.triggerType,
-            triggerConfig: selectedTemplate.preset.triggerConfig,
+            triggerConfig:
+              selectedTemplate.preset.triggerType === 'schedule'
+                ? {
+                    ...selectedTemplate.preset.triggerConfig,
+                    ...(scheduleRunAt ? { runAtDate: scheduleRunAt } : {}),
+                  }
+                : selectedTemplate.preset.triggerConfig,
             actions: selectedTemplate.preset.actions,
             status: 'active' as const,
           }
@@ -258,8 +568,7 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
             triggerConfig:
               formData.triggerType === 'schedule'
                 ? {
-                    frequency: formData.frequency as 'daily' | 'weekly' | 'monthly',
-                    runAtHour: 9,
+                    runAtDate: scheduleRunAt,
                   }
                 : formData.triggerType === 'inactivity'
                 ? {
@@ -348,9 +657,16 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
     () => (workflow: WorkflowAutomation) => {
       switch (workflow.triggerType) {
         case 'schedule':
-          return `${workflow.triggerConfig.frequency || 'daily'} @ ${
-            typeof workflow.triggerConfig.runAtHour === 'number' ? workflow.triggerConfig.runAtHour : '09'
-          }:00`;
+          if (workflow.triggerConfig.runAtDate) {
+            const runDate = new Date(workflow.triggerConfig.runAtDate);
+            if (!Number.isNaN(runDate.getTime())) {
+              return `Runs on ${runDate.toLocaleString(undefined, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })}`;
+            }
+          }
+          return `${workflow.triggerConfig.frequency || 'daily'} schedule`;
         case 'scan_threshold':
           return `After ${workflow.triggerConfig.threshold || 100} scans`;
         case 'inactivity':
@@ -373,6 +689,7 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
           if (onPrefillUsed) onPrefillUsed();
           resetForm();
           setPrefillQrUrl(null);
+          setPrefillRunDate(getDefaultRunDate());
         }
       }}>
         <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
@@ -454,7 +771,12 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
                       ? 'ring-2 ring-purple-500 bg-purple-50 dark:bg-purple-950/30'
                       : 'hover:bg-gray-50 dark:hover:bg-slate-800'
                   }`}
-                  onClick={() => setPrefillTriggerType('schedule')}
+                  onClick={() => {
+                    setPrefillTriggerType('schedule');
+                    if (!prefillRunDate) {
+                      setPrefillRunDate(getDefaultRunDate());
+                    }
+                  }}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
@@ -463,7 +785,7 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
                       </div>
                       <div>
                         <p className="font-semibold text-sm">Scheduled</p>
-                        <p className="text-xs text-gray-600 dark:text-gray-400">Daily/Weekly</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Pick calendar date</p>
                       </div>
                     </div>
                   </CardContent>
@@ -491,25 +813,13 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
               </div>
             </div>
 
-            {/* Frequency Selector (only for schedule trigger) */}
+            {/* Calendar Selector (only for schedule trigger) */}
             {prefillTriggerType === 'schedule' && (
               <div className="space-y-2">
-                <Label htmlFor="prefill-frequency">Frequency</Label>
-                <Select
-                  value={prefillFrequency}
-                  onValueChange={(value) => setPrefillFrequency(value as 'daily' | 'weekly' | 'monthly')}
-                >
-                  <SelectTrigger id="prefill-frequency">
-                    <SelectValue placeholder="Select frequency" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="prefill-run-date">Pick a date & time</Label>
+                <SchedulePicker value={prefillRunDate} onChange={setPrefillRunDate} />
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  How often should this automation run?
+                  Automation will fire once on the selected date, then run its action (notify or pause).
                 </p>
               </div>
             )}
@@ -551,6 +861,7 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
                 setShowPrefillDialog(false);
                 if (onPrefillUsed) onPrefillUsed();
                 resetForm();
+                setPrefillRunDate(getDefaultRunDate());
               }}
               disabled={creating}
               className="w-full sm:w-auto"
@@ -730,7 +1041,16 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
                     <Label>Trigger</Label>
                     <Select
                       value={formData.triggerType}
-                      onValueChange={(value) => setFormData((prev) => ({ ...prev, triggerType: value }))}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        triggerType: value,
+                        runDate:
+                          value === 'schedule' && !prev.runDate
+                            ? getDefaultRunDate()
+                            : prev.runDate,
+                      }))
+                    }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select trigger" />
@@ -746,20 +1066,14 @@ const WorkflowAutomations: React.FC<WorkflowAutomationsProps> = ({ prefillData, 
 
                   {formData.triggerType === 'schedule' ? (
                     <div className="space-y-2">
-                      <Label>Frequency</Label>
-                      <Select
-                        value={formData.frequency}
-                        onValueChange={(value) => setFormData((prev) => ({ ...prev, frequency: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select frequency" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="daily">Daily</SelectItem>
-                          <SelectItem value="weekly">Weekly</SelectItem>
-                          <SelectItem value="monthly">Monthly</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label>Calendar date</Label>
+                      <SchedulePicker
+                        value={formData.runDate}
+                        onChange={(nextValue) => setFormData((prev) => ({ ...prev, runDate: nextValue }))}
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        The automation will run once when this date/time is reached.
+                      </p>
                     </div>
                   ) : formData.triggerType === 'scan_threshold' ? (
                     <div className="space-y-2">

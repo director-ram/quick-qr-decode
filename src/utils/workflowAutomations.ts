@@ -26,6 +26,7 @@ export type WorkflowActionType = 'notify' | 'pause_qr' | 'update_destination';
 export interface WorkflowTriggerConfig {
   frequency?: 'daily' | 'weekly' | 'monthly';
   runAtHour?: number;
+  runAtDate?: string;
   threshold?: number;
   inactivityDays?: number;
   expiryDate?: string;
@@ -471,24 +472,36 @@ export const checkAndTriggerTimeBasedAutomations = async (qrId: string): Promise
 
       // Evaluate schedule trigger
       if (triggerType === 'schedule') {
-        const runAtHour = workflow.triggerConfig?.runAtHour ?? 9;
-        const frequency = workflow.triggerConfig?.frequency || 'daily';
-        
-        // Check if current hour matches runAtHour
-        if (now.getUTCHours() === runAtHour) {
-          // Check if it hasn't run today yet
-          const lastRunAt = workflow.lastRunAt?.toDate ? workflow.lastRunAt.toDate() : null;
-          
-          if (!lastRunAt) {
-            shouldTrigger = true;
-            triggerReason = `Scheduled time reached (${runAtHour}:00 UTC)`;
-          } else {
-            const diff = differenceInHours(now, lastRunAt);
-            const requiredGap = frequency === 'weekly' ? 24 * 7 : frequency === 'monthly' ? 24 * 30 : 24;
-            
-            if (diff >= requiredGap) {
+        const runAtDateRaw = workflow.triggerConfig?.runAtDate;
+        if (runAtDateRaw) {
+          const runAtDate = new Date(runAtDateRaw);
+          if (!Number.isNaN(runAtDate.getTime()) && now >= runAtDate) {
+            const lastRunAt = workflow.lastRunAt?.toDate ? workflow.lastRunAt.toDate() : null;
+            if (!lastRunAt || lastRunAt < runAtDate) {
               shouldTrigger = true;
-              triggerReason = `Scheduled time reached (${runAtHour}:00 UTC, ${frequency})`;
+              triggerReason = `Scheduled date reached (${runAtDate.toISOString()})`;
+            }
+          }
+        } else {
+          const runAtHour = workflow.triggerConfig?.runAtHour ?? 9;
+          const frequency = workflow.triggerConfig?.frequency || 'daily';
+          
+          // Check if current hour matches runAtHour
+          if (now.getUTCHours() === runAtHour) {
+            // Check if it hasn't run today yet
+            const lastRunAt = workflow.lastRunAt?.toDate ? workflow.lastRunAt.toDate() : null;
+            
+            if (!lastRunAt) {
+              shouldTrigger = true;
+              triggerReason = `Scheduled time reached (${runAtHour}:00 UTC)`;
+            } else {
+              const diff = differenceInHours(now, lastRunAt);
+              const requiredGap = frequency === 'weekly' ? 24 * 7 : frequency === 'monthly' ? 24 * 30 : 24;
+              
+              if (diff >= requiredGap) {
+                shouldTrigger = true;
+                triggerReason = `Scheduled time reached (${runAtHour}:00 UTC, ${frequency})`;
+              }
             }
           }
         }
