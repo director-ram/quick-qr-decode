@@ -565,7 +565,7 @@ const Index = () => {
               </div>
               <div className="space-y-3">
                 <a
-                  href="https://portfolio-sigma-black-77.vercel.app/"
+                  href="https://hema-sai.netlify.app/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 p-3 bg-white/10 rounded-lg border border-green-400/30 backdrop-blur-sm hover:bg-white/15 transition-all duration-300 cursor-pointer group"
